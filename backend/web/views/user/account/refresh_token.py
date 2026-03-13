@@ -7,13 +7,13 @@ from rest_framework_simplejwt.tokens import RefreshToken
 class RefreshTokenView(APIView):
     def post(self, request):
         try:
-            refresh_token = request.COOKIRS.get('refresh_token')
+            refresh_token = request.COOKIES.get('refresh_token')
             if not refresh_token:
                 return Response({
                     'result': 'refresh token 不存在'
                 }, status=401)
             refresh = RefreshToken(refresh_token)
-            if settings.SIMPLE_JWT['ROTATE_REFRESH_TOKEN']:
+            if settings.SIMPLE_JWT['ROTATE_REFRESH_TOKENS']:
                 refresh.set_jti()
                 response = Response({
                     'result': 'success',
