@@ -31,7 +31,7 @@
 
 ## 完整目录结构
 
-PythonProject1/  
+AIFriends/  
 ├── backend/                          # 后端项目根目录  
 │   ├── backend/                      # Django 配置目录  
 │   │   ├── asgi.py                   # ASGI 入口  
