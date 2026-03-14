@@ -6,7 +6,7 @@ import NotFoundIndex from "@/views/error/NotFoundIndex.vue";
 import LoginIndex from "@/views/user/account/LoginIndex.vue";
 import RegisterIndex from "@/views/user/account/RegisterIndex.vue";
 import SpaceIndex from "@/views/user/space/SpaceIndex.vue";
-import ProfileIndex from "@/views/profile/ProfileIndex.vue";
+import ProfileIndex from "@/views/user/profile/ProfileIndex.vue";
 import {useUserStore} from "@/stores/user.js";
 
 const router = createRouter({
