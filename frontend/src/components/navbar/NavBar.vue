@@ -15,14 +15,12 @@ const user = useUserStore();
     <input id="my-drawer-4" type="checkbox" class="drawer-toggle" />
     <div class="drawer-content">
       <nav class="navbar w-full bg-base-100 shadow-sm">
-
         <div class="navbar-start">
           <label for="my-drawer-4" aria-label="open sidebar" class="btn btn-square btn-ghost">
             <MenuIcon />
           </label>
           <div class="px-2 font-bold text-xl">AIFriends</div>
         </div>
-
         <div class="navbar-center w-4/5 max-w-180 flex justify-center">
           <div class="join w-4/5 flex justify-center">
             <input class="input join-item rounded-l-full w-4/5" placeholder="搜索你感兴趣的内容" />
@@ -32,9 +30,8 @@ const user = useUserStore();
             </button>
           </div>
         </div>
-
         <div class="navbar-end">
-          <RouterLink v-if="user.isLogin()" :to="{name: 'create-index'}" active-class="btn-active" class = "btn btn-ghost text-base mr-6">
+          <RouterLink v-if="user.isLogin()" :to="{name: 'update-character', params: {character_id: 1}}" active-class="btn-active" class = "btn btn-ghost text-base mr-6">
             <CreateIcon />
               创作
           </RouterLink>
