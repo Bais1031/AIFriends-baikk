@@ -53,7 +53,7 @@ let observer = null
 onMounted(async () => {
   await loadMore()
 
-  observer = new  IntersectionObserver(
+  observer = new IntersectionObserver(
       entries => {
         entries.forEach(entry => {
           if (entry.isIntersecting) {
