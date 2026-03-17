@@ -9,7 +9,7 @@ export const useUserStore = defineStore('user', () => {
     const accessToken = ref('')
     const hasPulledUserInfo = ref(false)
 
-    function isLogin(){
+    function isLogin() {
         return !!accessToken.value //必须带value 否则一直保持登录
     }
 
