@@ -12,7 +12,7 @@ class GetListFriendView(APIView):
             items_count = int(request.query_params.get('items_count', 0))
             friends_raw = Friend.objects.filter(
                 me__user=request.user
-            ).order_by('-updated_time')[items_count: items_count + 20]
+            ).order_by('-update_time')[items_count: items_count + 20]
             friends = []
             for friend in friends_raw:
                 character = friend.character
@@ -27,7 +27,7 @@ class GetListFriendView(APIView):
                         'background_image': character.background_image.url,
                         'author': {
                             'user_id': author.user_id,
-                            'username': author.user.uername,
+                            'username': author.user.username,
                             'photo': author.photo.url,
                         }
                     }
