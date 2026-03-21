@@ -23,7 +23,6 @@ async function handleSend(event, audio_msq) {
   } else {
     content = message.value.trim()
   }
-
   if (!content) return
 
   const curId = ++ processId
