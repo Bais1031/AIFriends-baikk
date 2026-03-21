@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@microsoft/fetch-event-source": "^2.0.1",
+    "@ricky0123/vad-web": "^0.0.30",
     "@tailwindcss/vite": "^4.2.1",
     "axios": "^1.13.6",
     "croppie": "^2.6.5",
