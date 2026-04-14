@@ -17,6 +17,7 @@ from rest_framework.permissions import IsAuthenticated
 from web.models.friend import Friend, Message, SystemPrompt
 from web.views.friend.message.chat.graph import ChatGraph
 from web.views.friend.message.memory.update import update_memory
+from web.utils.token_cache import TokenCache
 
 
 class SSERenderer(BaseRenderer):
@@ -192,9 +193,11 @@ class MessageChatView(APIView):
                 full_usage = msg['usage']
 
         yield 'data: [DONE]\n\n'
-        input_tokens = full_usage.get('input_tokens', 0)
-        output_tokens = full_usage.get('output_tokens', 0)
-        total_tokens = full_usage.get('total_tokens', 0)
+        # 使用 Token 缓存
+        input_text = ' '.join([m.content for m in inputs['messages']])
+        input_tokens = TokenCache.estimate_tokens(input_text)
+        output_tokens = TokenCache.estimate_tokens(full_output)
+        total_tokens = input_tokens + output_tokens
         Message.objects.create(
             friend=friend,
             user_message=message[:500],
