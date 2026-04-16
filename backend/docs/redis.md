@@ -497,4 +497,4 @@ cache.set(key, value, timeout=3600)  # 1小时
 
 **文档版本**: 1.0  
 **更新日期**: 2026-04-14  
-**维护者**: AIFriends Team
+**维护者**: Bais1031
