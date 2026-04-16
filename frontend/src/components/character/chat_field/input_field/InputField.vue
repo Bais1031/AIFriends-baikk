@@ -1,6 +1,7 @@
 <script setup>
 import SendIcon from "@/components/character/icons/SendIcon.vue";
 import MicIcon from "@/components/character/icons/MicIcon.vue";
+import ImageUpload from "@/components/character/chat_field/input_field/ImageUpload.vue";
 import {onUnmounted, ref, useTemplateRef} from "vue";
 import streamApi from "@/js/http/streamApi.js";
 import Microphone from "@/components/character/chat_field/input_field/Microphone.vue";
@@ -9,6 +10,7 @@ const props = defineProps(['friendId'])
 const emit = defineEmits(['pushBackMessage', 'addToLastMessage'])
 const inputRef = useTemplateRef('input-ref')
 const message = ref('')
+const selectedImage = ref(null)  // 存储选中的图片文件
 let processId = 0
 const showMic = ref(false)
 
@@ -109,22 +111,37 @@ async function handleSend(event, audio_msq) {
   } else {
     content = message.value.trim()
   }
-  if (!content) return
+
+  // 检查是否有消息或图片
+  if (!content && !selectedImage.value) return
 
   initAudioStream()
 
   const curId = ++ processId
   message.value = ''
 
-  emit('pushBackMessage', {role: 'user', content: content, id: crypto.randomUUID()})
+  // 准备用户消息
+  const userMessage = {
+    role: 'user',
+    content: content || '[图片]',
+    image_url: selectedImage.value ? URL.createObjectURL(selectedImage.value) : null,
+    id: crypto.randomUUID()
+  }
+
+  emit('pushBackMessage', userMessage)
   emit('pushBackMessage', {role: 'ai', content: '', id: crypto.randomUUID()})
 
   try {
-    await streamApi('/api/friend/message/chat/', {
-      body: {
-        friend_id: props.friendId,
-        message: content,
-      },
+    // 准备表单数据
+    const formData = new FormData()
+    formData.append('friend_id', props.friendId)
+    formData.append('message', content || '')
+    if (selectedImage.value) {
+      formData.append('image', selectedImage.value)
+    }
+
+    await streamApi('/api/friend/message/chat/multimodal/', {
+      body: formData,
       onmessage(data, isDone) {
         if (curId !==processId) return
 
@@ -136,10 +153,15 @@ async function handleSend(event, audio_msq) {
         }
       },
       onerror(err) {
+        console.error('Stream error:', err)
       },
     })
   } catch (err) {
+    console.error('Send error:', err)
   }
+
+  // 清除选中的图片
+  selectedImage.value = null
 }
 
 function close() {
@@ -161,16 +183,29 @@ defineExpose({
 
 <template>
   <form v-if="!showMic" @submit.prevent="handleSend" class="absolute bottom-4 left-2 h-12 w-86 flex items-center">
+    <!-- 图片上传按钮 -->
+    <div class="absolute left-2 z-10">
+      <ImageUpload
+        v-model="selectedImage"
+        :class="['image-upload-btn', {'selected-image': selectedImage}]"
+      />
+    </div>
+
+    <!-- 输入框 -->
     <input
         ref="input-ref"
         v-model="message"
-        class="input bg-black/30 backdrop-blur-sm text-white text-base w-full h-full rounded-2xl pr-20"
+        class="input bg-black/30 backdrop-blur-sm text-white text-base w-full h-full rounded-2xl pr-20 pl-12"
         type="text"
-        placeholder="文本输入..."
+        placeholder="输入消息或上传图片..."
     >
+
+    <!-- 发送按钮 -->
     <div @click="handleSend" class="absolute right-2 w-8 h-8 flex justify-center items-center cursor-pointer">
       <SendIcon />
     </div>
+
+    <!-- 麦克风按钮 -->
     <div @click="showMic = true" class="absolute right-10 w-8 h-8 flex justify-center items-center cursor-pointer">
       <MicIcon />
     </div>
@@ -184,5 +219,25 @@ defineExpose({
 </template>
 
 <style scoped>
+.image-upload-btn {
+  width: 32px;
+  height: 32px;
+  overflow: hidden;
+  opacity: 0.8;
+}
 
+.image-upload-btn:hover {
+  opacity: 1;
+}
+
+.selected-image {
+  width: 200px;
+  height: 80px;
+  opacity: 1;
+}
+
+/* 调整输入框在有图片上传时的宽度 */
+.form-with-image {
+  width: calc(100% - 32px) !important;
+}
 </style>
