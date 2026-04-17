@@ -73,21 +73,80 @@ const previewImage = (url) => {
 <style scoped>
 .image-container {
   position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.chat-start .image-container {
+  justify-content: flex-start;
+}
+
+.chat-end .image-container {
+  justify-content: flex-end;
 }
 
 .image-container img {
-  max-width: 300px;
+  max-width: 100%;
+  max-height: 300px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
   border-radius: 8px;
-  transition: transform 0.2s;
+  transition: transform 0.2s, box-shadow 0.2s;
+  cursor: pointer;
 }
 
 .image-container img:hover {
   transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.chat-start .image-container img {
+  margin-right: 12px;
+}
+
+.chat-end .image-container img {
+  margin-left: 12px;
 }
 
 .image-caption {
   text-align: center;
   color: #666;
   font-style: italic;
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .image-container img {
+    max-height: 250px;
+  }
+}
+
+@media (max-width: 480px) {
+  .image-container img {
+    max-height: 200px;
+  }
+}
+
+/* Dark theme support */
+@media (prefers-color-scheme: dark) {
+  .image-caption {
+    color: #aaa;
+  }
+
+  .image-container img:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  }
+}
+
+/* Light theme adjustments */
+@media (prefers-color-scheme: light) {
+  .image-container img:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
 }
 </style>
