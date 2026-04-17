@@ -24,6 +24,9 @@ class Message(models.Model):
     input_tokens = models.IntegerField(default=0)
     output_tokens = models.IntegerField(default=0)
     total_tokens = models.IntegerField(default=0)
+    image_url = models.CharField(max_length=500, blank=True, null=True)
+    image_caption = models.TextField(blank=True, null=True)
+    image_analysis = models.JSONField(blank=True, null=True)
     create_time = models.DateTimeField(default=now)
 
     def __str__(self):

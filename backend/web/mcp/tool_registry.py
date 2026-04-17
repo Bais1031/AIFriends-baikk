@@ -58,6 +58,43 @@ class MCPToolRegistry:
             print(f"[MCP] Error calling tool '{name}': {str(e)}")
             raise
 
+    def call_tool_sync(self, name: str, params: Dict[str, Any]) -> Any:
+        """同步调用MCP工具（用于非异步环境）"""
+        import asyncio
+
+        if name not in self.tools:
+            raise ValueError(f"Tool {name} not registered")
+
+        tool = self.tools[name]
+        start_time = time.time()
+
+        try:
+            # 检查是否已经有运行中的事件循环
+            try:
+                loop = asyncio.get_running_loop()
+                # 如果有运行中的循环，使用run_in_executor
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(asyncio.run, tool.implementation(**params))
+                    result = future.result()
+            except RuntimeError:
+                # 没有运行中的循环，创建新的
+                result = asyncio.run(tool.implementation(**params))
+
+            duration = time.time() - start_time
+
+            # 更新统计信息
+            tool.usage_count += 1
+            tool.total_time += duration
+
+            # 记录日志
+            print(f"[MCP] Tool '{name}' called (sync), duration: {duration:.3f}s, usage_count: {tool.usage_count}")
+
+            return result
+        except Exception as e:
+            print(f"[MCP] Error calling tool '{name}' (sync): {str(e)}")
+            raise
+
     def _generate_schema(self, implementation: Callable) -> Dict[str, Any]:
         """生成工具的JSON Schema"""
         # 简化版本，实际可以使用inspect模块来生成完整的schema

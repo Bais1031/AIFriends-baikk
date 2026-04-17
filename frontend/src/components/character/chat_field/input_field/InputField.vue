@@ -132,30 +132,52 @@ async function handleSend(event, audio_msq) {
   emit('pushBackMessage', {role: 'ai', content: '', id: crypto.randomUUID()})
 
   try {
-    // 准备表单数据
-    const formData = new FormData()
-    formData.append('friend_id', props.friendId)
-    formData.append('message', content || '')
+    // 根据是否有图片选择不同的API
     if (selectedImage.value) {
+      // 有图片，使用多模态API
+      const formData = new FormData()
+      formData.append('friend_id', props.friendId)
+      formData.append('message', content || '')
       formData.append('image', selectedImage.value)
+
+      await streamApi('/api/friend/message/chat/multimodal/', {
+        body: formData,
+        onmessage(data, isDone) {
+          if (curId !==processId) return
+
+          if (data.content) {
+            emit('addToLastMessage', data.content)
+          }
+          if (data.audio) {
+            handleAudioChunk(data.audio)
+          }
+        },
+        onerror(err) {
+          console.error('Stream error:', err)
+        },
+      })
+    } else {
+      // 没有图片，使用原来的API
+      await streamApi('/api/friend/message/chat/', {
+        body: {
+          friend_id: props.friendId,
+          message: content,
+        },
+        onmessage(data, isDone) {
+          if (curId !==processId) return
+
+          if (data.content) {
+            emit('addToLastMessage', data.content)
+          }
+          if (data.audio) {
+            handleAudioChunk(data.audio)
+          }
+        },
+        onerror(err) {
+          console.error('Stream error:', err)
+        },
+      })
     }
-
-    await streamApi('/api/friend/message/chat/multimodal/', {
-      body: formData,
-      onmessage(data, isDone) {
-        if (curId !==processId) return
-
-        if (data.content) {
-          emit('addToLastMessage', data.content)
-        }
-        if (data.audio) {
-          handleAudioChunk(data.audio)
-        }
-      },
-      onerror(err) {
-        console.error('Stream error:', err)
-      },
-    })
   } catch (err) {
     console.error('Send error:', err)
   }
