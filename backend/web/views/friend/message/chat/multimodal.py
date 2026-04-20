@@ -22,6 +22,7 @@ from web.models.friend import Friend, Message, SystemPrompt
 from web.views.friend.message.chat.graph import ChatGraph
 from web.views.friend.message.memory.update import update_memory
 from web.utils.token_cache import TokenCache
+from web.utils.prompt_template import PromptTemplateManager
 from web.mcp.init_tools import get_global_registry
 
 
@@ -182,16 +183,16 @@ class MultiModalChatView(APIView):
                 messages.insert(0, SystemMessage(image_prompt))
                 print(f"[EventStream] 添加图片分析提示")
 
-        # 添加角色系统提示
-        system_prompts = SystemPrompt.objects.filter(title='回复').order_by('order_number')
-        prompt = ''
-        for sp in system_prompts:
-            prompt += sp.prompt
-        prompt += f'\n【角色性格】\n{friend.character.profile}\n'
-        prompt += f'【长期记忆】\n{friend.memory}\n'
+        # 添加角色系统提示（使用模板隔离）
+        image_analysis_text = image_analysis.get('analysis', '') if image_analysis else ""
+        prompt_data = PromptTemplateManager.create_system_prompt(
+            friend=friend,
+            user_message=user_message,
+            image_analysis=image_analysis_text
+        )
 
-        messages.insert(0, SystemMessage(prompt))
-        print(f"[EventStream] 添加系统提示")
+        messages.insert(0, SystemMessage(content=prompt_data['system_instructions']))
+        print(f"[EventStream] 使用模板隔离添加系统提示")
 
         # 添加最近消息历史
         recent_messages = list(Message.objects.filter(friend=friend).order_by('-id')[:10])

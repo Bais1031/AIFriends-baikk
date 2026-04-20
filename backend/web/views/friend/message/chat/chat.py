@@ -18,6 +18,7 @@ from web.models.friend import Friend, Message, SystemPrompt
 from web.views.friend.message.chat.graph import ChatGraph
 from web.views.friend.message.memory.update import update_memory
 from web.utils.token_cache import TokenCache
+from web.utils.prompt_template import PromptTemplateManager, PromptTemplateEngine
 
 
 class SSERenderer(BaseRenderer):
@@ -28,24 +29,41 @@ class SSERenderer(BaseRenderer):
 
 
 def add_system_prompt(state, friend):
+    """
+    使用模板隔离机制添加系统提示词
+    防止用户输入注入到系统指令中
+    """
     msgs = state['messages']
-    system_prompts = SystemPrompt.objects.filter(title='回复').order_by('order_number')
-    prompt = ''
-    for sp in system_prompts:
-        prompt += sp.prompt
-    prompt += f'\n【角色性格】\n{friend.character.profile}\n'
-    prompt += f'【长期记忆】\n{friend.memory}\n'
-    return {'messages': [SystemMessage(prompt)] + msgs}
+    user_message = msgs[-1].content if msgs else ""
+
+    # 使用模板管理器创建安全的系统提示词
+    prompt_data = PromptTemplateManager.create_system_prompt(
+        friend=friend,
+        user_message=user_message
+    )
+
+    # 使用渲染后的系统指令
+    system_message = SystemMessage(content=prompt_data['system_instructions'])
+
+    # 记录模板信息用于调试
+    print(f"[TemplateSecurity] 使用模板渲染，上下文字段数: {len(prompt_data['context_data'])}")
+
+    return {'messages': [system_message] + msgs}
 
 
 def add_recent_messages(state, friend):
+    """
+    添加最近消息历史，并进行安全处理
+    """
     msgs = state['messages']
     message_raw = list(Message.objects.filter(friend=friend).order_by('-id')[:10])
     message_raw.reverse()
     messages = []
     for m in message_raw:
-        messages.append(HumanMessage(m.user_message))
-        messages.append(AIMessage(m.output))
+        # 对用户消息进行安全验证
+        safe_user_message = PromptTemplateEngine._safe_escape(m.user_message)
+        messages.append(HumanMessage(content=safe_user_message))
+        messages.append(AIMessage(content=m.output))
     return {'messages': msgs[:1] + messages + msgs[-1:]}
 
 
