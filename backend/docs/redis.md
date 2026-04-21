@@ -1,3 +1,75 @@
+## Redis Docker 常用命令
+
+### 容器管理
+```bash
+# 启动 Redis
+docker start aifriends-redis
+
+# 停止 Redis
+docker stop aifriends-redis
+
+# 重启 Redis
+docker restart aifriends-redis
+
+# 查看运行状态
+docker ps | grep redis
+
+# 查看所有状态（包括已停止）
+docker ps -a | grep redis
+```
+
+### 连接 Redis CLI
+```bash
+# 进入容器内 redis-cli
+docker exec -it aifriends-redis redis-cli
+
+# 使用本地 redis-cli（如果已安装）
+redis-cli -h localhost -p 6379
+```
+
+### Redis 常用操作（CLI 中）
+```bash
+# 测试连接
+PING
+
+# 查看信息
+INFO
+
+# 查看所有键
+KEYS *
+
+# 查看键值
+GET key_name
+
+
+
+# 设置键值
+SET key_name "value"
+
+# 删除键
+DEL key_name
+
+# 清空当前数据库
+FLUSHDB
+
+# 清空所有数据库
+FLUSHALL
+
+# 退出
+exit
+```
+
+### 完全移除容器（慎用）
+```bash
+# 停止并删除容器
+docker rm -f aifriends-redis
+
+# 如需重新创建
+docker run -d --name aifriends-redis -p 6379:6379 redis:alpine
+```
+
+---
+
 # Redis 缓存配置指南
 
 ## 概述
