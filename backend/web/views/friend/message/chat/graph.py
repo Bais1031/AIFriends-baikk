@@ -12,6 +12,7 @@ from langgraph.graph import add_messages, StateGraph
 from langgraph.prebuilt import ToolNode
 
 from web.documents.utils.custom_embeddings import CustomEmbeddings
+from web.documents.utils.hybrid_search import hybrid_search
 
 
 class ChatGraph:
@@ -32,7 +33,7 @@ class ChatGraph:
                 embedding=embeddings,
                 table_name='my_knowledge_base',
             )
-            docs = vector_db.similarity_search(query, k=3)
+            docs = hybrid_search(vector_db, query, k=3)
             context = '\n\n'.join([f'内容片段：{i + 1}\n{doc.page_content}' for i, doc in enumerate(docs)])
             return f'从知识库中找到以下相关信息：\n\n{context}\n'
 
