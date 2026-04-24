@@ -1,4 +1,4 @@
-# AIFriends
+# VoxMind-多模态语音 Agent 系统
 
 一个基于 Django + Vue 3 的全栈 AI 聊天应用，支持创建虚拟角色、与它们聊天、语音合成和图片对话等功能。
 
