@@ -8,17 +8,17 @@ from queue import Queue
 
 import websockets
 from django.http import StreamingHttpResponse
-from langchain_core.messages import HumanMessage, BaseMessageChunk, SystemMessage, AIMessage
+from langchain_core.messages import HumanMessage, BaseMessageChunk, AIMessage
 from rest_framework.renderers import BaseRenderer
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
-from web.models.friend import Friend, Message, SystemPrompt
+from web.models.friend import Friend, Message
 from web.views.friend.message.chat.graph import ChatGraph
 from web.views.friend.message.memory.update import update_memory
 from web.utils.token_cache import TokenCache
-from web.utils.prompt_template import PromptTemplateManager, PromptTemplateEngine
+from web.utils.context_builder import ContextBuilder, should_update_summary, update_conversation_summary
 
 
 class SSERenderer(BaseRenderer):
@@ -28,48 +28,14 @@ class SSERenderer(BaseRenderer):
         return data
 
 
-def add_system_prompt(state, friend):
-    """
-    使用模板隔离机制添加系统提示词
-    防止用户输入注入到系统指令中
-    """
-    msgs = state['messages']
-    user_message = msgs[-1].content if msgs else ""
-
-    # 使用模板管理器创建安全的系统提示词
-    prompt_data = PromptTemplateManager.create_system_prompt(
-        friend=friend,
-        user_message=user_message
-    )
-
-    # 使用渲染后的系统指令
-    system_message = SystemMessage(content=prompt_data['system_instructions'])
-
-    # 记录模板信息用于调试
-    print(f"[TemplateSecurity] 使用模板渲染，上下文字段数: {len(prompt_data['context_data'])}")
-
-    return {'messages': [system_message] + msgs}
-
-
-def add_recent_messages(state, friend):
-    """
-    添加最近消息历史，并进行安全处理
-    """
-    msgs = state['messages']
-    message_raw = list(Message.objects.filter(friend=friend).order_by('-id')[:10])
-    message_raw.reverse()
-    messages = []
-    for m in message_raw:
-        # 对用户消息进行安全验证
-        safe_user_message = PromptTemplateEngine._safe_escape(m.user_message)
-        messages.append(HumanMessage(content=safe_user_message))
-        messages.append(AIMessage(content=m.output))
-    return {'messages': msgs[:1] + messages + msgs[-1:]}
+# 记忆更新触发频率：每 N 条消息触发一次
+MEMORY_UPDATE_INTERVAL = 5
 
 
 class MessageChatView(APIView):
     permission_classes = [IsAuthenticated]
     renderer_classes = [SSERenderer]
+
     def post(self, request):
         friend_id = request.data['friend_id']
         message = request.data['message'].strip()
@@ -83,13 +49,12 @@ class MessageChatView(APIView):
                 'result': '好友不存在'
             })
         friend = friends.first()
-        app = ChatGraph.create_app()
 
-        inputs = {
-            'messages': [HumanMessage(message)]
-        }
-        inputs = add_system_prompt(inputs, friend)
-        inputs = add_recent_messages(inputs, friend)
+        # 使用 ContextBuilder 构建完整上下文
+        builder = ContextBuilder(friend=friend, current_message=message)
+        inputs = {'messages': builder.build()}
+
+        app = ChatGraph.create_app()
 
         response = StreamingHttpResponse(
             self.event_stream(app, inputs, friend, message),
@@ -107,7 +72,7 @@ class MessageChatView(APIView):
                     await ws.send(json.dumps({
                         "header": {
                             "action": "continue-task",
-                            "task_id": task_id,  # 随机uuid
+                            "task_id": task_id,
                             "streaming": "duplex"
                         },
                         "payload": {
@@ -126,7 +91,7 @@ class MessageChatView(APIView):
                 "streaming": "duplex"
             },
             "payload": {
-                "input": {}  # input不能省去，否则会报错
+                "input": {}
             }
         }))
 
@@ -154,7 +119,7 @@ class MessageChatView(APIView):
             await ws.send(json.dumps({
                 "header": {
                     "action": "run-task",
-                    "task_id": task_id,  # 随机uuid
+                    "task_id": task_id,
                     "streaming": "duplex"
                 },
                 "payload": {
@@ -164,15 +129,14 @@ class MessageChatView(APIView):
                     "model": "cosyvoice-v3-flash",
                     "parameters": {
                         "text_type": "PlainText",
-                        "voice": "longanyang",  # 音色
-                        "format": "mp3",  # 音频格式
-                        "sample_rate": 22050,  # 采样率
-                        "volume": 50,  # 音量
-                        "rate": 1.25,  # 语速
-                        "pitch": 1  # 音调
+                        "voice": "longanyang",
+                        "format": "mp3",
+                        "sample_rate": 22050,
+                        "volume": 50,
+                        "rate": 1.25,
+                        "pitch": 1
                     },
-                    "input": {  # input不能省去，不然会报错
-                    }
+                    "input": {}
                 }
             }))
             async for msg in ws:
@@ -211,11 +175,14 @@ class MessageChatView(APIView):
                 full_usage = msg['usage']
 
         yield 'data: [DONE]\n\n'
-        # 使用 Token 缓存
-        input_text = ' '.join([m.content for m in inputs['messages']])
-        input_tokens = TokenCache.estimate_tokens(input_text)
-        output_tokens = TokenCache.estimate_tokens(full_output)
+
+        # 优先使用 LLM 返回的实际 token 用量，回退到估算
+        input_tokens = full_usage.get('input_tokens', 0) or TokenCache.estimate_tokens(
+            ' '.join([m.content for m in inputs['messages'] if hasattr(m, 'content')])
+        )
+        output_tokens = full_usage.get('output_tokens', 0) or TokenCache.estimate_tokens(full_output)
         total_tokens = input_tokens + output_tokens
+
         Message.objects.create(
             friend=friend,
             user_message=message[:500],
@@ -228,5 +195,12 @@ class MessageChatView(APIView):
             output_tokens=output_tokens,
             total_tokens=total_tokens,
         )
-        if Message.objects.filter(friend=friend).count() % 1 == 0:
+
+        # 每隔 N 条消息更新长期记忆（修复原 % 1 bug）
+        msg_count = Message.objects.filter(friend=friend).count()
+        if msg_count % MEMORY_UPDATE_INTERVAL == 0:
             update_memory(friend)
+
+        # 检查是否需要更新对话摘要
+        if should_update_summary(friend):
+            update_conversation_summary(friend)

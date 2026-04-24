@@ -16,13 +16,13 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
-from langchain_core.messages import BaseMessageChunk
+from langchain_core.messages import BaseMessageChunk, HumanMessage, SystemMessage, AIMessage
 
-from web.models.friend import Friend, Message, SystemPrompt
+from web.models.friend import Friend, Message
 from web.views.friend.message.chat.graph import ChatGraph
 from web.views.friend.message.memory.update import update_memory
 from web.utils.token_cache import TokenCache
-from web.utils.prompt_template import PromptTemplateManager
+from web.utils.context_builder import ContextBuilder, should_update_summary, update_conversation_summary
 from web.mcp.init_tools import get_global_registry
 
 
@@ -31,6 +31,10 @@ class SSERenderer(BaseRenderer):
     format = 'txt'
     def render(self, data, accepted_media_type=None, renderer_context=None):
         return data
+
+
+# 记忆更新触发频率
+MEMORY_UPDATE_INTERVAL = 5
 
 
 class MultiModalChatView(APIView):
@@ -46,29 +50,22 @@ class MultiModalChatView(APIView):
     def post(self, request):
         """处理多模态消息"""
         try:
-            print(f"[Multimodal] 收到请求: {request.data}")
-            print(f"[Multimodal] 图片文件: {request.FILES.get('image')}")
-
             friend_id = request.data.get('friend_id')
             message = request.data.get('message', '').strip()
             image_file = request.FILES.get('image')
 
             if not friend_id or (not message and not image_file):
-                print(f"[Multimodal] 参数验证失败: friend_id={friend_id}, message={message}, image_file={image_file}")
                 return Response({
                     'error': 'friend_id、message或image至少需要提供一项'
                 }, status=400)
 
-            # 验证好友关系
             friends = Friend.objects.filter(pk=friend_id, me__user=request.user)
             if not friends.exists():
-                print(f"[Multimodal] 好友不存在: friend_id={friend_id}")
                 return Response({
                     'error': '好友不存在'
                 }, status=404)
 
             friend = friends.first()
-            print(f"[Multimodal] 找到好友: {friend}")
 
             # 处理图片
             image_url = None
@@ -76,16 +73,11 @@ class MultiModalChatView(APIView):
             image_analysis = None
 
             if image_file:
-                print(f"[Multimodal] 开始处理图片: {image_file.name}")
-                # 保存图片
                 image_url, image_analysis = self._save_and_analyze_image(image_file, friend)
-                # 修复：MCP工具返回的是'analysis'字段，不是'description'
                 image_caption = image_analysis.get('analysis', '') if image_analysis else ''
-                print(f"[Multimodal] 图片处理完成: url={image_url}, caption={image_caption[:50] if image_caption else 'None'}...")
 
             # 准备聊天输入
             user_message = message or f"[图片] {image_caption}" if image_caption else "[图片]"
-            print(f"[Multimodal] 用户消息: {user_message}")
 
             # 流式响应生成器
             response = StreamingHttpResponse(
@@ -107,23 +99,15 @@ class MultiModalChatView(APIView):
     def _save_and_analyze_image(self, image_file, friend):
         """保存图片并分析"""
         import tempfile
-        from django.utils.timezone import now
 
-        print(f"[Image] 开始保存和分析图片: {image_file.name}, 大小: {image_file.size}")
-
-        # 创建临时文件
         with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(image_file.name)[1]) as tmp_file:
             for chunk in image_file.chunks():
                 tmp_file.write(chunk)
             tmp_file_path = tmp_file.name
 
-        print(f"[Image] 临时文件创建: {tmp_file_path}")
-
         try:
-            # 保存图片到media目录
             upload_dir = os.path.join('media', 'images', str(friend.id))
             os.makedirs(upload_dir, exist_ok=True)
-            print(f"[Image] 上传目录: {upload_dir}")
 
             filename = f"{uuid.uuid4().hex}_{image_file.name}"
             file_path = os.path.join(upload_dir, filename)
@@ -132,15 +116,11 @@ class MultiModalChatView(APIView):
                 dst.write(src.read())
 
             image_url = f"/media/images/{friend.id}/{filename}"
-            print(f"[Image] 图片保存成功: {file_path}, URL: {image_url}")
 
-            # 使用MCP工具分析图片（使用同步调用）
             try:
-                print(f"[Image] 开始调用MCP工具分析图片...")
                 analysis_result = self.mcp_registry.call_tool_sync("image_analysis", {
                     "image_path": tmp_file_path
                 })
-                print(f"[Image] MCP工具返回结果: {analysis_result}")
 
                 if analysis_result.get('success', False):
                     image_analysis = analysis_result
@@ -160,60 +140,32 @@ class MultiModalChatView(APIView):
             traceback.print_exc()
             raise
         finally:
-            # 删除临时文件
             if os.path.exists(tmp_file_path):
                 os.remove(tmp_file_path)
-                print(f"[Image] 临时文件已删除")
 
     def event_stream(self, friend, user_message, image_url, image_caption, image_analysis):
         """生成流式响应"""
-        print(f"[EventStream] 开始生成流式响应")
-
-        from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
-
-        # 构建输入消息
-        messages = [HumanMessage(user_message)]
-        print(f"[EventStream] 初始消息: {user_message}")
-
-        # 添加图片分析结果到系统提示
-        if image_analysis:
-            analysis_text = image_analysis.get('analysis', '')
-            if analysis_text:
-                image_prompt = f"用户发送了一张图片，分析如下：{analysis_text}\n\n请根据这个图片内容来回答用户的问题。"
-                messages.insert(0, SystemMessage(image_prompt))
-                print(f"[EventStream] 添加图片分析提示")
-
-        # 添加角色系统提示（使用模板隔离）
+        # 使用 ContextBuilder 构建上下文
         image_analysis_text = image_analysis.get('analysis', '') if image_analysis else ""
-        prompt_data = PromptTemplateManager.create_system_prompt(
+        builder = ContextBuilder(
             friend=friend,
-            user_message=user_message,
+            current_message=user_message,
             image_analysis=image_analysis_text
         )
+        messages = builder.build()
 
-        messages.insert(0, SystemMessage(content=prompt_data['system_instructions']))
-        print(f"[EventStream] 使用模板隔离添加系统提示")
-
-        # 添加最近消息历史
-        recent_messages = list(Message.objects.filter(friend=friend).order_by('-id')[:10])
-        recent_messages.reverse()
-
-        for m in recent_messages:
-            messages.append(HumanMessage(m.user_message))
-            messages.append(AIMessage(m.output))
-
-        print(f"[EventStream] 消息历史数量: {len(recent_messages)}")
+        # 如果有图片分析，在系统提示词之后插入图片描述
+        if image_analysis_text:
+            image_prompt = f"用户发送了一张图片，分析如下：{image_analysis_text}\n\n请根据这个图片内容来回答用户的问题。"
+            # 插入到系统提示词之后（位置 1）
+            messages.insert(1, SystemMessage(content=image_prompt))
 
         inputs = {'messages': messages}
 
         # 创建聊天图
         app = ChatGraph.create_app()
-        print(f"[EventStream] 创建聊天图")
 
-        # 使用work方法运行TTS任务
         mq = Queue()
-        print(f"[EventStream] 创建消息队列")
-
         thread = threading.Thread(target=self.work, args=(app, inputs, mq))
         thread.start()
 
@@ -237,10 +189,9 @@ class MultiModalChatView(APIView):
         yield 'data: [DONE]\n\n'
 
         # 保存消息到数据库
-        self._save_message(friend, user_message, full_output, image_url, image_caption, image_analysis)
+        self._save_message(friend, user_message, full_output, image_url, image_caption, image_analysis, full_usage)
 
     async def tts_sender(self, app, inputs, mq, ws, task_id):
-        print(f"[TTSSender] 开始发送消息")
         try:
             async for msg, metadata in app.astream(inputs, stream_mode="messages"):
                 if isinstance(msg, BaseMessageChunk):
@@ -259,11 +210,9 @@ class MultiModalChatView(APIView):
                             }
                         }))
                         mq.put_nowait({'content': content})
-                        print(f"[TTSSender] 发送内容: {content[:20]}...")
                     if hasattr(msg, 'usage_metadata') and msg.usage_metadata:
                         mq.put_nowait({'usage': msg.usage_metadata})
 
-            print(f"[TTSSender] 发送完成，发送结束信号")
             await ws.send(json.dumps({
                 "header": {
                     "action": "finish-task",
@@ -292,11 +241,9 @@ class MultiModalChatView(APIView):
                     break
 
     async def run_tts_tasks(self, app, inputs, mq):
-        print(f"[TTS] 开始TTS任务")
         task_id = uuid.uuid4().hex
         api_key = os.getenv('API_KEY')
         wss_url = os.getenv('WSS_URL')
-        print(f"[TTS] WSS URL: {wss_url}")
 
         headers = {
             "Authorization": f"Bearer {api_key}"
@@ -304,8 +251,6 @@ class MultiModalChatView(APIView):
 
         try:
             async with websockets.connect(wss_url, additional_headers=headers) as ws:
-                print(f"[TTS] WebSocket连接成功")
-
                 await ws.send(json.dumps({
                     "header": {
                         "action": "run-task",
@@ -332,15 +277,12 @@ class MultiModalChatView(APIView):
 
                 async for msg in ws:
                     if json.loads(msg)['header']['event'] == 'task-started':
-                        print(f"[TTS] 任务启动成功")
                         break
 
-                print(f"[TTS] 开始并行执行发送和接收")
                 await asyncio.gather(
                     self.tts_sender(app, inputs, mq, ws, task_id),
                     self.tts_receiver(mq, ws),
                 )
-                print(f"[TTS] TTS任务完成")
 
         except Exception as e:
             print(f"[TTS] TTS任务异常: {e}")
@@ -349,10 +291,8 @@ class MultiModalChatView(APIView):
             raise
 
     def work(self, app, inputs, mq):
-        print(f"[Work] 开始执行工作线程")
         try:
             asyncio.run(self.run_tts_tasks(app, inputs, mq))
-            print(f"[Work] 工作线程完成")
         except Exception as e:
             print(f"[Work] 工作线程异常: {e}")
             import traceback
@@ -360,17 +300,17 @@ class MultiModalChatView(APIView):
             mq.put({'content': f"处理过程中出现了错误：{str(e)}"})
         finally:
             mq.put_nowait(None)
-            print(f"[Work] 工作线程结束")
 
-    def _save_message(self, friend, user_message, ai_output, image_url, image_caption, image_analysis):
+    def _save_message(self, friend, user_message, ai_output, image_url, image_caption, image_analysis, full_usage=None):
         """保存消息到数据库"""
         try:
-            # 估算token数
-            input_tokens = TokenCache.estimate_tokens(user_message)
-            output_tokens = TokenCache.estimate_tokens(ai_output)
+            full_usage = full_usage or {}
+
+            # 优先使用 LLM 返回的实际 token 用量
+            input_tokens = full_usage.get('input_tokens', 0) or TokenCache.estimate_tokens(user_message)
+            output_tokens = full_usage.get('output_tokens', 0) or TokenCache.estimate_tokens(ai_output)
             total_tokens = input_tokens + output_tokens
 
-            # 构建输入消息JSON
             input_data = {
                 "user_message": user_message,
                 "image_url": image_url,
@@ -378,7 +318,6 @@ class MultiModalChatView(APIView):
                 "image_analysis": image_analysis
             }
 
-            # 保存消息
             Message.objects.create(
                 friend=friend,
                 user_message=user_message[:500],
@@ -392,9 +331,14 @@ class MultiModalChatView(APIView):
                 image_analysis=image_analysis
             )
 
-            # 定期更新记忆
-            if Message.objects.filter(friend=friend).count() % 5 == 0:
+            # 每隔 N 条消息更新长期记忆
+            msg_count = Message.objects.filter(friend=friend).count()
+            if msg_count % MEMORY_UPDATE_INTERVAL == 0:
                 update_memory(friend)
+
+            # 检查是否需要更新对话摘要
+            if should_update_summary(friend):
+                update_conversation_summary(friend)
 
         except Exception as e:
             print(f"保存消息失败: {e}")

@@ -8,6 +8,8 @@ from typing import Dict, Any, Optional
 from django.core.exceptions import ValidationError
 from django.utils.html import escape
 
+from web.models.friend import SystemPrompt
+
 
 class PromptTemplateEngine:
     """安全的模板渲染引擎"""

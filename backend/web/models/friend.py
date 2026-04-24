@@ -9,6 +9,8 @@ class Friend(models.Model):
     me = models.ForeignKey(UserProfile,on_delete=models.CASCADE)
     character = models.ForeignKey(Character,on_delete=models.CASCADE)
     memory = models.TextField(default="", max_length=5000, blank=True, null=True)
+    conversation_summary = models.TextField(default="", blank=True)
+    summary_message_count = models.IntegerField(default=0)
     create_time = models.DateTimeField(default=now)
     update_time = models.DateTimeField(default=now)
 
