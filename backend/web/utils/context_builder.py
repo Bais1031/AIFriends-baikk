@@ -1,23 +1,26 @@
 """
 上下文构建器
-实现 token 感知的动态消息窗口和自动摘要
+实现 token 感知的动态消息窗口、自动摘要、语义记忆检索
 """
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
-from web.models.friend import Friend, Message
+from web.models.friend import Friend, Message, MemoryItem
 from web.utils.token_cache import TokenCache
 from web.utils.prompt_template import PromptTemplateEngine
+from web.utils.memory_retrieval import retrieve_relevant_memories
 
 
 # 触发摘要的消息累积阈值
 SUMMARY_THRESHOLD = 20
+# 语义检索返回的记忆条数
+MEMORY_TOP_K = 5
 
 
 class ContextBuilder:
     """
     构建发送给 LLM 的完整上下文
 
-    结构: [SystemPrompt] + [摘要层] + [近期对话(受token预算约束)] + [当前消息]
+    结构: [SystemPrompt] + [语义记忆层] + [摘要层] + [近期对话(token预算约束)] + [当前消息]
     """
 
     def __init__(self, friend: Friend, current_message: str,
@@ -35,18 +38,22 @@ class ContextBuilder:
         system_prompt = self._build_system_prompt()
         messages.append(system_prompt)
 
-        # 2. 对话摘要层
+        # 2. 语义记忆层：检索与当前消息相关的记忆
+        memory_messages = self._build_memory_context()
+        messages.extend(memory_messages)
+
+        # 3. 对话摘要层
         summary = self.friend.conversation_summary
         if summary:
             messages.append(SystemMessage(
                 content=f"【之前的对话摘要】\n{summary}"
             ))
 
-        # 3. 近期对话（受 token 预算约束）
+        # 4. 近期对话（受 token 预算约束）
         history_messages = self._build_recent_messages()
         messages.extend(history_messages)
 
-        # 4. 当前用户消息
+        # 5. 当前用户消息
         messages.append(HumanMessage(content=self.current_message))
 
         return messages
@@ -55,13 +62,32 @@ class ContextBuilder:
         """构建系统提示词"""
         from web.utils.prompt_template import PromptTemplateManager
 
+        # 获取语义相关记忆用于注入系统提示
+        relevant_memories = retrieve_relevant_memories(
+            self.friend, self.current_message, top_k=MEMORY_TOP_K
+        )
+        memory_text = '\n'.join([f"- {m.content}" for m in relevant_memories]) if relevant_memories else ''
+
         prompt_data = PromptTemplateManager.create_system_prompt(
             friend=self.friend,
             user_message=self.current_message,
-            image_analysis=self.image_analysis
+            image_analysis=self.image_analysis,
+            memory_override=memory_text,
         )
-        print(f"[ContextBuilder] 系统提示词字段数: {len(prompt_data['context_data'])}")
+        print(f"[ContextBuilder] 系统提示词字段数: {len(prompt_data['context_data'])}, 记忆条数: {len(relevant_memories)}")
         return SystemMessage(content=prompt_data['system_instructions'])
+
+    def _build_memory_context(self) -> list[SystemMessage]:
+        """构建语义记忆上下文（独立的记忆层，补充系统提示中的记忆）"""
+        memories = retrieve_relevant_memories(
+            self.friend, self.current_message, top_k=MEMORY_TOP_K
+        )
+        if not memories:
+            return []
+
+        lines = [f"- [{m.category}] {m.content}" for m in memories]
+        content = "【相关记忆】\n" + '\n'.join(lines)
+        return [SystemMessage(content=content)]
 
     def _build_recent_messages(self) -> list:
         """

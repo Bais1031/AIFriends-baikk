@@ -1,0 +1,94 @@
+"""
+记忆检索与衰减模块
+基于语义相似度检索与当前对话最相关的记忆，并提供权重衰减
+"""
+import math
+
+from django.utils.timezone import now as timezone_now
+
+from web.models.friend import MemoryItem, Friend
+from web.utils.embedding import get_embedding, cosine_similarity
+
+
+# 默认检索参数
+DEFAULT_TOP_K = 5
+SIMILARITY_THRESHOLD = 0.85
+# 权重衰减半衰期（天）
+DECAY_HALF_LIFE = 30
+# 低权重归档阈值
+ARCHIVE_WEIGHT_THRESHOLD = 0.05
+
+
+def retrieve_relevant_memories(friend: Friend, query: str,
+                               top_k: int = DEFAULT_TOP_K) -> list[MemoryItem]:
+    """检索与当前消息语义最相关的 top-K 条记忆"""
+    query_embedding = get_embedding(query)
+    if query_embedding is None:
+        # embedding 不可用时回退到按权重取
+        return list(friend.memories.all()[:top_k])
+
+    memories = friend.memories.exclude(embedding__isnull=True)
+    if not memories.exists():
+        return list(friend.memories.all()[:top_k])
+
+    scored = []
+    for m in memories:
+        if m.embedding:
+            sim = cosine_similarity(query_embedding, m.embedding)
+            scored.append((m, sim))
+
+    scored.sort(key=lambda x: x[1], reverse=True)
+    result = [m for m, _ in scored[:top_k]]
+
+    # 更新被检索记忆的 access_count 和 last_accessed
+    for m in result:
+        m.access_count += 1
+        m.save(update_fields=['access_count', 'last_accessed'])
+
+    return result
+
+
+def find_similar_memory(friend: Friend, content: str,
+                        threshold: float = SIMILARITY_THRESHOLD) -> MemoryItem | None:
+    """查找与给定内容语义相似的已有记忆，用于去重"""
+    embedding = get_embedding(content)
+    if embedding is None:
+        return None
+
+    memories = friend.memories.exclude(embedding__isnull=True)
+    best_match = None
+    best_score = 0.0
+
+    for m in memories:
+        if m.embedding:
+            sim = cosine_similarity(embedding, m.embedding)
+            if sim > best_score:
+                best_score = sim
+                best_match = m
+
+    if best_score >= threshold:
+        return best_match
+    return None
+
+
+def decay_memory_weights(friend: Friend):
+    """
+    对记忆权重执行时间衰减
+    公式: weight = importance × e^(-0.693 × 天数/半衰期) × (1 + 0.05 × 引用次数)
+    """
+    now = timezone_now()
+    decay_constant = 0.693 / DECAY_HALF_LIFE  # ln(2) / 半衰期
+
+    for m in friend.memories.all():
+        days_since = (now - m.last_accessed).days
+        decay = math.exp(-decay_constant * days_since)
+        m.weight = m.importance * decay * (1 + 0.05 * m.access_count)
+        m.weight = max(0.0, min(1.0, m.weight))
+        m.save(update_fields=['weight'])
+
+
+def archive_low_weight_memories(friend: Friend, threshold: float = ARCHIVE_WEIGHT_THRESHOLD):
+    """删除权重低于阈值的记忆条目"""
+    deleted, _ = friend.memories.filter(weight__lt=threshold).delete()
+    if deleted:
+        print(f"[Memory] 归档 {deleted} 条低权重记忆 (权重 < {threshold})")

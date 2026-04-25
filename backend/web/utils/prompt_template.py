@@ -139,7 +139,8 @@ class PromptTemplateManager:
 
     @classmethod
     def create_system_prompt(cls, friend, user_message: str = "",
-                          image_analysis: str = "") -> Dict[str, Any]:
+                          image_analysis: str = "",
+                          memory_override: str = "") -> Dict[str, Any]:
         """
         创建结构化的系统提示词
 
@@ -147,6 +148,7 @@ class PromptTemplateManager:
             friend: Friend 对象
             user_message: 用户当前消息
             image_analysis: 图片分析结果
+            memory_override: 语义检索的记忆文本，非空时替代 friend.memory
 
         Returns:
             包含系统指令和上下文数据的字典
@@ -161,10 +163,12 @@ class PromptTemplateManager:
 
         template = '\n'.join(template_parts)
 
-        # 构建上下文数据
+        # 构建上下文数据：语义检索记忆优先，回退到 friend.memory
+        memory_text = memory_override if memory_override else friend.memory
+
         context = {
             'character_profile': friend.character.profile,
-            'memory': friend.memory,
+            'memory': memory_text,
             'user_message': user_message,
             'image_analysis': image_analysis or ""
         }
