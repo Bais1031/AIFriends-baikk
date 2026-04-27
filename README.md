@@ -17,7 +17,8 @@
 - Django 6.0 + REST Framework
 - JWT 认证
 - LangChain + LangGraph（Agent 编排）
-- SQLite + Redis（缓存和会话存储）
+- PostgreSQL + pgvector（向量存储与 HNSW 索引检索）
+- Redis（Token 缓存和会话存储）
 - SSE 流式响应
 - MCP 工具（图片分析）
 
@@ -34,14 +35,36 @@ DB0: Token 缓存 + 查询缓存
 DB1: 会话存储
 ```
 
+## PostgreSQL + pgvector 架构
+
+```
+PostgreSQL 17 + pgvector 扩展
+├── 数据存储：Django ORM 全量业务数据
+├── 向量字段：MemoryItem.embedding → vector(1024)
+└── HNSW 索引：m=16, ef_construction=64, vector_cosine_ops
+    └── 语义检索 O(log N) 替代全表扫描 O(N)
+```
+
 ## 快速开始
 
-### 1. 启动 Redis
+### 1. 启动 PostgreSQL + pgvector
+```bash
+docker run -d --name aifriends-postgres -p 5432:5432 \
+  -e POSTGRES_DB=aifriends -e POSTGRES_USER=aifriends \
+  -e POSTGRES_PASSWORD=aifriends_dev \
+  -v aifriends-pgdata:/var/lib/postgresql/data \
+  pgvector/pgvector:pg17
+
+docker exec aifriends-postgres psql -U aifriends -d aifriends \
+  -c "CREATE EXTENSION IF NOT EXISTS vector;"
+```
+
+### 2. 启动 Redis
 ```bash
 docker run -d --name aifriends-redis -p 6379:6379 redis:alpine
 ```
 
-### 2. 后端
+### 3. 后端
 ```bash
 cd backend
 pip install -r requirements.txt
@@ -49,7 +72,7 @@ python manage.py migrate
 python manage.py runserver
 ```
 
-### 3. 前端
+### 4. 前端
 ```bash
 cd frontend
 npm install
@@ -96,6 +119,13 @@ WSS_URL="wss://dashscope.aliyuncs.com/api-ws/v1/inference"
 
 # Redis（用于缓存和会话）
 REDIS_URL="redis://127.0.0.1:6379"
+
+# PostgreSQL（业务数据 + 向量存储）
+PG_DATABASE=aifriends
+PG_USER=aifriends
+PG_PASSWORD=aifriends_dev
+PG_HOST=127.0.0.1
+PG_PORT=5432
 ```
 
 ## 其他功能
@@ -118,7 +148,9 @@ REDIS_URL="redis://127.0.0.1:6379"
 
 ### 长期记忆
 - 结构化存储：`MemoryItem` 模型，每条记忆独立存储（content / category / importance / weight / embedding）
+- 向量存储：embedding 使用 pgvector `VectorField(1024)`，原生 `vector(1024)` 类型替代 JSON 数组
+- HNSW 索引：`m=16, ef_construction=64, vector_cosine_ops`，语义检索 O(log N)
 - 记忆分类：preference(偏好) / event(事件) / fact(事实) / emotion(情感) / general(通用)
-- 增量提取 + 语义去重：LLM 提取 JSON 记忆点，余弦相似度 ≥ 0.85 视为重复，重复提及自动提升权重
-- 语义检索注入：每次对话只注入 top-K 条相关记忆，替代全量灌入
+- 增量提取 + 语义去重：LLM 提取 JSON 记忆点，pgvector CosineDistance 检索最近邻，距离 ≤ 0.15（等价相似度 ≥ 0.85）视为重复，重复提及自动提升权重
+- 语义检索注入：pgvector 数据库侧 CosineDistance 查询，每次对话只注入 top-K 条相关记忆，替代全量灌入
 - 权重衰减：半衰期 30 天，权重低于 0.05 自动归档删除
