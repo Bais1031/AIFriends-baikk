@@ -13,3 +13,7 @@ python-dotenv==1.2.2
 pylance==4.0.0
 rank-bm25==0.2.2
 websockets==16.0
+psycopg2-binary==2.9.10
+pgvector==0.4.1
+django-redis==5.4.0
+django-cors-headers==4.7.0

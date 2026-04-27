@@ -5,9 +5,10 @@
 import math
 
 from django.utils.timezone import now as timezone_now
+from pgvector.django import CosineDistance
 
 from web.models.friend import MemoryItem, Friend
-from web.utils.embedding import get_embedding, cosine_similarity
+from web.utils.embedding import get_embedding
 
 
 # 默认检索参数
@@ -24,23 +25,17 @@ def retrieve_relevant_memories(friend: Friend, query: str,
     """检索与当前消息语义最相关的 top-K 条记忆"""
     query_embedding = get_embedding(query)
     if query_embedding is None:
-        # embedding 不可用时回退到按权重取
         return list(friend.memories.all()[:top_k])
 
     memories = friend.memories.exclude(embedding__isnull=True)
     if not memories.exists():
         return list(friend.memories.all()[:top_k])
 
-    scored = []
-    for m in memories:
-        if m.embedding:
-            sim = cosine_similarity(query_embedding, m.embedding)
-            scored.append((m, sim))
+    result = list(
+        memories.annotate(distance=CosineDistance('embedding', query_embedding))
+        .order_by('distance')[:top_k]
+    )
 
-    scored.sort(key=lambda x: x[1], reverse=True)
-    result = [m for m, _ in scored[:top_k]]
-
-    # 更新被检索记忆的 access_count 和 last_accessed
     for m in result:
         m.access_count += 1
         m.save(update_fields=['access_count', 'last_accessed'])
@@ -55,19 +50,13 @@ def find_similar_memory(friend: Friend, content: str,
     if embedding is None:
         return None
 
-    memories = friend.memories.exclude(embedding__isnull=True)
-    best_match = None
-    best_score = 0.0
+    distance_threshold = 1.0 - threshold  # similarity >= 0.85 → distance <= 0.15
+    best = friend.memories.exclude(embedding__isnull=True).annotate(
+        distance=CosineDistance('embedding', embedding)
+    ).order_by('distance').first()
 
-    for m in memories:
-        if m.embedding:
-            sim = cosine_similarity(embedding, m.embedding)
-            if sim > best_score:
-                best_score = sim
-                best_match = m
-
-    if best_score >= threshold:
-        return best_match
+    if best and best.distance <= distance_threshold:
+        return best
     return None
 
 

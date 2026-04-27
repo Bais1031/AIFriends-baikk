@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils.timezone import now, localtime
+from pgvector.django import VectorField, HnswIndex
 
 from web.models.character import Character
 from web.models.user import UserProfile
@@ -34,12 +35,21 @@ class MemoryItem(models.Model):
     importance = models.FloatField(default=0.5)
     weight = models.FloatField(default=0.5)
     access_count = models.IntegerField(default=0)
-    embedding = models.JSONField(default=None, null=True, blank=True)
+    embedding = VectorField(dimensions=1024, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     last_accessed = models.DateTimeField(default=now)
 
     class Meta:
         ordering = ['-weight']
+        indexes = [
+            HnswIndex(
+                name='web_memoryitem_embedding_hnsw',
+                fields=['embedding'],
+                opclasses=['vector_cosine_ops'],
+                m=16,
+                ef_construction=64,
+            ),
+        ]
 
     def __str__(self):
         return f"[{self.category}] {self.content[:50]} (w={self.weight:.2f})"

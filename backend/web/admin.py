@@ -1,7 +1,7 @@
 from django.contrib import admin
 from web.models.user import UserProfile
 from web.models.character import Character
-from web.models.friend import Friend, Message, SystemPrompt
+from web.models.friend import Friend, MemoryItem, Message, SystemPrompt
 
 
 @admin.register(UserProfile)
@@ -25,3 +25,12 @@ class MessageAdmin(admin.ModelAdmin):
 
 
 admin.site.register(SystemPrompt)
+
+
+@admin.register(MemoryItem)
+class MemoryItemAdmin(admin.ModelAdmin):
+    list_display = ('content', 'category', 'importance', 'weight', 'access_count', 'created_at')
+    list_filter = ('category',)
+    search_fields = ('content',)
+    exclude = ('embedding',)
+    raw_id_fields = ('friend',)

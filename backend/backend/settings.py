@@ -44,6 +44,8 @@ INSTALLED_APPS = [
     'rest_framework',
     'web',
     'corsheaders',
+    'django.contrib.postgres',
+    'pgvector',
 ]
 
 MIDDLEWARE = [
@@ -82,8 +84,12 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv('PG_DATABASE', 'aifriends'),
+        'USER': os.getenv('PG_USER', 'aifriends'),
+        'PASSWORD': os.getenv('PG_PASSWORD', 'aifriends_dev'),
+        'HOST': os.getenv('PG_HOST', '127.0.0.1'),
+        'PORT': os.getenv('PG_PORT', '5432'),
     }
 }
 
