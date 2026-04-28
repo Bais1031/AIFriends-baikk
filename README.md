@@ -168,3 +168,19 @@ PG_PORT=5432
 - 增量提取 + 语义去重：LLM 提取 JSON 记忆点，pgvector CosineDistance 检索最近邻，距离 ≤ 0.15（等价相似度 ≥ 0.85）视为重复，重复提及自动提升权重
 - 语义检索注入：pgvector 数据库侧 CosineDistance 查询，每次对话只注入 top-K 条相关记忆，替代全量灌入
 - 权重衰减：半衰期 30 天，权重低于 0.05 自动归档删除
+
+### 网络搜索 MCP Server
+- MCP Server（SSE 传输）暴露 `web_search` 工具，LangGraph Agent 作为 MCP Client 按需调用
+- 底层使用 Tavily API 搜索互联网，返回结构化结果（标题 + 内容 + 来源）
+- 与 RAG 检索互补：RAG 覆盖本地知识库，web_search 覆盖实时网络信息（天气、新闻、时事等）
+- LLM 自主决策何时调用：根据工具 docstring 判断选择 `search_knowledge_base`（知识库）还是 `web_search`（网络）
+- 容错机制：MCP Server 不可用时 chat 正常运行，仅缺少网络搜索能力
+
+```
+启动方式：
+# 终端1：启动 MCP Server
+cd backend && python -m web.mcp.server.web_search_server
+
+# 终端2：启动 Django
+python manage.py runserver
+```
