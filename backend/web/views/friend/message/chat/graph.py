@@ -13,6 +13,7 @@ from langgraph.prebuilt import ToolNode
 
 from web.documents.utils.custom_embeddings import CustomEmbeddings
 from web.documents.utils.hybrid_search import hybrid_search
+from web.mcp.client.mcp_client import MCPClientManager
 
 
 class ChatGraph:
@@ -38,6 +39,14 @@ class ChatGraph:
             return f'从知识库中找到以下相关信息：\n\n{context}\n'
 
         tools = [get_time, search_knowledge_base]
+
+        # 从 MCP Server 发现工具，容错：Server 不可用时跳过
+        try:
+            mcp_client = MCPClientManager()
+            mcp_tools = mcp_client.discover_tools()
+            tools.extend(mcp_tools)
+        except Exception as e:
+            print(f"[ChatGraph] MCP 工具发现失败: {e}，仅使用内置工具")
 
         llm = ChatOpenAI(
             model='deepseek-v3.2',

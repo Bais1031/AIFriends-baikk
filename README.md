@@ -48,6 +48,8 @@ PostgreSQL 17 + pgvector 扩展
 ## 快速开始
 
 ### 1. 启动 PostgreSQL + pgvector
+
+首次安装：
 ```bash
 docker run -d --name aifriends-postgres -p 5432:5432 \
   -e POSTGRES_DB=aifriends -e POSTGRES_USER=aifriends \
@@ -59,9 +61,21 @@ docker exec aifriends-postgres psql -U aifriends -d aifriends \
   -c "CREATE EXTENSION IF NOT EXISTS vector;"
 ```
 
+后续启动（容器已存在）：
+```bash
+docker start aifriends-postgres
+```
+
 ### 2. 启动 Redis
+
+首次安装：
 ```bash
 docker run -d --name aifriends-redis -p 6379:6379 redis:alpine
+```
+
+后续启动（容器已存在）：
+```bash
+docker start aifriends-redis
 ```
 
 ### 3. 后端

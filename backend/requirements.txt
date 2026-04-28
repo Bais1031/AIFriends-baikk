@@ -17,3 +17,5 @@ psycopg2-binary==2.9.10
 pgvector==0.4.1
 django-redis==5.4.0
 django-cors-headers==4.7.0
+mcp==1.9.3
+tavily-python==0.7.3
