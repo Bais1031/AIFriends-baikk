@@ -34,12 +34,17 @@ class ContextBuilder:
         """构建完整的消息列表"""
         messages = []
 
-        # 1. 系统提示词（由调用方通过 PromptTemplateManager 添加）
-        system_prompt = self._build_system_prompt()
+        # 检索语义相关记忆（一次调用，两处复用）
+        relevant_memories = retrieve_relevant_memories(
+            self.friend, self.current_message, top_k=MEMORY_TOP_K
+        )
+
+        # 1. 系统提示词
+        system_prompt = self._build_system_prompt(relevant_memories)
         messages.append(system_prompt)
 
-        # 2. 语义记忆层：检索与当前消息相关的记忆
-        memory_messages = self._build_memory_context()
+        # 2. 语义记忆层
+        memory_messages = self._build_memory_context(relevant_memories)
         messages.extend(memory_messages)
 
         # 3. 对话摘要层
@@ -58,14 +63,10 @@ class ContextBuilder:
 
         return messages
 
-    def _build_system_prompt(self) -> SystemMessage:
+    def _build_system_prompt(self, relevant_memories: list) -> SystemMessage:
         """构建系统提示词"""
         from web.utils.prompt_template import PromptTemplateManager
 
-        # 获取语义相关记忆用于注入系统提示
-        relevant_memories = retrieve_relevant_memories(
-            self.friend, self.current_message, top_k=MEMORY_TOP_K
-        )
         memory_text = '\n'.join([f"- {m.content}" for m in relevant_memories]) if relevant_memories else ''
 
         prompt_data = PromptTemplateManager.create_system_prompt(
@@ -77,15 +78,12 @@ class ContextBuilder:
         print(f"[ContextBuilder] 系统提示词字段数: {len(prompt_data['context_data'])}, 记忆条数: {len(relevant_memories)}")
         return SystemMessage(content=prompt_data['system_instructions'])
 
-    def _build_memory_context(self) -> list[SystemMessage]:
+    def _build_memory_context(self, relevant_memories: list) -> list[SystemMessage]:
         """构建语义记忆上下文（独立的记忆层，补充系统提示中的记忆）"""
-        memories = retrieve_relevant_memories(
-            self.friend, self.current_message, top_k=MEMORY_TOP_K
-        )
-        if not memories:
+        if not relevant_memories:
             return []
 
-        lines = [f"- [{m.category}] {m.content}" for m in memories]
+        lines = [f"- [{m.category}] {m.content}" for m in relevant_memories]
         content = "【相关记忆】\n" + '\n'.join(lines)
         return [SystemMessage(content=content)]
 
