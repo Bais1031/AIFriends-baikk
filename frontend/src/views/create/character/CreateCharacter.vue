@@ -3,6 +3,7 @@ import Photo from "@/views/create/character/components/Photo.vue";
 import Name from "@/views/create/character/components/Name.vue";
 import Profile from "@/views/create/character/components/Profile.vue";
 import BackgroundImage from "@/views/create/character/components/BackgroundImage.vue";
+import VoiceSelector from "@/views/create/character/components/VoiceSelector.vue";
 import {ref, useTemplateRef} from "vue";
 import {base64ToFile} from "@/js/utils/base64_to_file.js";
 import api from "@/js/http/api.js";
@@ -16,6 +17,7 @@ const photoRef = useTemplateRef('photo-ref')
 const nameRef = useTemplateRef('name-ref')
 const profileRef = useTemplateRef('profile-ref')
 const backgroundImageRef = useTemplateRef('background-image-ref')
+const voiceRef = useTemplateRef('voice-ref')
 const errorMessage = ref('')
 
 async function handleCreate(){
@@ -23,6 +25,7 @@ async function handleCreate(){
   const name = nameRef.value.myName?.trim()
   const profile = profileRef.value.myProfile?.trim()
   const backgroundImage = backgroundImageRef.value.myBackgroundImage
+  const speaker = voiceRef.value.mySpeaker
 
   errorMessage.value = ''
   if (!photo) {
@@ -39,6 +42,7 @@ async function handleCreate(){
     formData.append('profile', profile)
     formData.append('photo', base64ToFile(photo, 'photo.png'))
     formData.append('background_image', base64ToFile(backgroundImage, 'background_image.png'))
+    formData.append('speaker', speaker)
 
     try {
       const res = await api.post('/api/create/character/create/', formData)
@@ -67,7 +71,10 @@ async function handleCreate(){
         <photo ref="photo-ref" />
         <Name ref="name-ref" />
         <Profile ref="profile-ref" />
-        <BackgroundImage ref="background-image-ref" />
+        <div class="flex gap-6 items-end">
+          <BackgroundImage ref="background-image-ref" />
+          <VoiceSelector ref="voice-ref" />
+        </div>
 
         <p v-if="errorMessage" class="text-sm text-red-500">{{ errorMessage }}</p>
 
