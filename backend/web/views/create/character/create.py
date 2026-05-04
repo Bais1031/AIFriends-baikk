@@ -34,12 +34,15 @@ class CreateCharacterView(APIView):
                     'result': '聊天背景不能为空',
                 })
 
+            speaker = request.data.get('speaker', 'longanyang')
+
             Character.objects.create(
                 author=user_profile,
                 name=name,
                 profile=profile,
                 photo=photo,
                 background_image=background_image,
+                speaker=speaker,
             )
             return Response({
                 'result': 'success',

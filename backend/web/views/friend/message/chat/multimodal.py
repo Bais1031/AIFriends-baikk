@@ -166,7 +166,7 @@ class MultiModalChatView(APIView):
         app = ChatGraph.create_app()
 
         mq = Queue()
-        thread = threading.Thread(target=self.work, args=(app, inputs, mq))
+        thread = threading.Thread(target=self.work, args=(app, inputs, mq, friend.character.speaker))
         thread.start()
 
         full_output = ''
@@ -240,7 +240,7 @@ class MultiModalChatView(APIView):
                 if event in ['task-finished', 'task-failed']:
                     break
 
-    async def run_tts_tasks(self, app, inputs, mq):
+    async def run_tts_tasks(self, app, inputs, mq, speaker):
         task_id = uuid.uuid4().hex
         api_key = os.getenv('API_KEY')
         wss_url = os.getenv('WSS_URL')
@@ -264,7 +264,7 @@ class MultiModalChatView(APIView):
                         "model": "cosyvoice-v3-flash",
                         "parameters": {
                             "text_type": "PlainText",
-                            "voice": "longanyang",
+                            "voice": speaker,
                             "format": "mp3",
                             "sample_rate": 22050,
                             "volume": 50,
@@ -290,9 +290,9 @@ class MultiModalChatView(APIView):
             traceback.print_exc()
             raise
 
-    def work(self, app, inputs, mq):
+    def work(self, app, inputs, mq, speaker):
         try:
-            asyncio.run(self.run_tts_tasks(app, inputs, mq))
+            asyncio.run(self.run_tts_tasks(app, inputs, mq, speaker))
         except Exception as e:
             print(f"[Work] 工作线程异常: {e}")
             import traceback

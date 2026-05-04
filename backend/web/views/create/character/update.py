@@ -34,6 +34,9 @@ class UpdateCharacterView(APIView):
                 character.background_image = background_image
             character.name = name
             character.profile = profile
+            speaker = request.data.get('speaker')
+            if speaker:
+                character.speaker = speaker
             character.update_time = now()
             character.save()
             return Response({
