@@ -71,7 +71,7 @@ async function handleCreate(){
         <photo ref="photo-ref" />
         <Name ref="name-ref" />
         <Profile ref="profile-ref" />
-        <div class="flex gap-6 items-end">
+        <div class="flex gap-6 items-start">
           <BackgroundImage ref="background-image-ref" />
           <VoiceSelector ref="voice-ref" />
         </div>

@@ -96,7 +96,7 @@ async function handleUpdate(){
         <Photo ref="photo-ref" :photo="character.photo" />
         <Name ref="name-ref" :name="character.name" />
         <Profile ref="profile-ref" :profile="character.profile" />
-        <div class="flex gap-6 items-end">
+        <div class="flex gap-6 items-start">
           <BackgroundImage ref="background-image-ref" :backgroundImage="character.background_image" />
           <VoiceSelector ref="voice-ref" :speaker="character.speaker" />
         </div>
