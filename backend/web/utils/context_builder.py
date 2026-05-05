@@ -13,7 +13,7 @@ from web.utils.memory_retrieval import retrieve_relevant_memories
 # 触发摘要的消息累积阈值
 SUMMARY_THRESHOLD = 20
 # 语义检索返回的记忆条数
-MEMORY_TOP_K = 5
+MEMORY_TOP_K = 8
 
 
 class ContextBuilder:
@@ -43,11 +43,7 @@ class ContextBuilder:
         system_prompt = self._build_system_prompt(relevant_memories)
         messages.append(system_prompt)
 
-        # 2. 语义记忆层
-        memory_messages = self._build_memory_context(relevant_memories)
-        messages.extend(memory_messages)
-
-        # 3. 对话摘要层
+        # 2. 对话摘要层
         summary = self.friend.conversation_summary
         if summary:
             messages.append(SystemMessage(
@@ -77,15 +73,6 @@ class ContextBuilder:
         )
         print(f"[ContextBuilder] 系统提示词字段数: {len(prompt_data['context_data'])}, 记忆条数: {len(relevant_memories)}")
         return SystemMessage(content=prompt_data['system_instructions'])
-
-    def _build_memory_context(self, relevant_memories: list) -> list[SystemMessage]:
-        """构建语义记忆上下文（独立的记忆层，补充系统提示中的记忆）"""
-        if not relevant_memories:
-            return []
-
-        lines = [f"- [{m.category}] {m.content}" for m in relevant_memories]
-        content = "【相关记忆】\n" + '\n'.join(lines)
-        return [SystemMessage(content=content)]
 
     def _build_recent_messages(self) -> list:
         """

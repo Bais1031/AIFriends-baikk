@@ -3,7 +3,6 @@
 增量提取 + 去重合并，替代全量替换
 """
 import json
-from django.utils.timezone import now
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from web.models.friend import SystemPrompt, Message, Friend, MemoryItem
@@ -133,23 +132,7 @@ def update_memory(friend: Friend):
     else:
         print("[Memory] 本次无新记忆提取")
 
-    # 同步更新 friend.memory 为缓存字段（拼接当前所有记忆）
-    _refresh_memory_cache(friend)
-
     # 执行权重衰减和低权重归档
     decay_memory_weights(friend)
     archive_low_weight_memories(friend)
 
-
-def _refresh_memory_cache(friend: Friend):
-    """将 MemoryItem 拼接为文本缓存到 friend.memory，保持向后兼容"""
-    memories = friend.memories.all()[:20]
-    if memories:
-        lines = []
-        for m in memories:
-            lines.append(f"- [{m.category}] {m.content}")
-        friend.memory = '\n'.join(lines)
-    else:
-        friend.memory = ''
-    friend.update_time = now()
-    friend.save()

@@ -163,8 +163,8 @@ class PromptTemplateManager:
 
         template = '\n'.join(template_parts)
 
-        # 构建上下文数据：语义检索记忆优先，回退到 friend.memory
-        memory_text = memory_override if memory_override else friend.memory
+        # 构建上下文数据：记忆来自语义检索
+        memory_text = memory_override
 
         context = {
             'character_profile': friend.character.profile,
@@ -189,9 +189,12 @@ class PromptTemplateManager:
 
         template = '\n'.join([sp.prompt for sp in system_prompts])
 
+        memories = friend.memories.all()[:20]
+        memory_text = '\n'.join([f"- [{m.category}] {m.content}" for m in memories]) if memories else ''
+
         context = {
             'character_profile': friend.character.profile,
-            'memory': friend.memory
+            'memory': memory_text
         }
 
         rendered_prompt = PromptTemplateEngine.render_template(template, context)
