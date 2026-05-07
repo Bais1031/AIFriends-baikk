@@ -36,9 +36,11 @@ def retrieve_relevant_memories(friend: Friend, query: str,
         .order_by('distance')[:top_k]
     )
 
-    for m in result:
-        m.access_count += 1
-        m.save(update_fields=['access_count', 'last_accessed'])
+    if result:
+        for m in result:
+            m.access_count += 1
+            m.last_accessed = timezone_now()
+        MemoryItem.objects.bulk_update(result, ['access_count', 'last_accessed'])
 
     return result
 
@@ -68,12 +70,15 @@ def decay_memory_weights(friend: Friend):
     now = timezone_now()
     decay_constant = 0.693 / DECAY_HALF_LIFE  # ln(2) / 半衰期
 
-    for m in friend.memories.all():
+    memories = list(friend.memories.all())
+    for m in memories:
         days_since = (now - m.last_accessed).days
         decay = math.exp(-decay_constant * days_since)
         m.weight = m.importance * decay * (1 + 0.05 * m.access_count)
         m.weight = max(0.0, min(1.0, m.weight))
-        m.save(update_fields=['weight'])
+
+    if memories:
+        MemoryItem.objects.bulk_update(memories, ['weight'])
 
 
 def archive_low_weight_memories(friend: Friend, threshold: float = ARCHIVE_WEIGHT_THRESHOLD):
