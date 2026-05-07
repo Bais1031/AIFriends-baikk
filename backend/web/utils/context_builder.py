@@ -14,6 +14,9 @@ from web.utils.memory_retrieval import retrieve_relevant_memories
 SUMMARY_THRESHOLD = 20
 # 语义检索返回的记忆条数
 MEMORY_TOP_K = 8
+# 各层 token 预算
+MEMORY_BUDGET = 800
+SUMMARY_BUDGET = 500
 
 
 class ContextBuilder:
@@ -46,6 +49,7 @@ class ContextBuilder:
         # 2. 对话摘要层
         summary = self.friend.conversation_summary
         if summary:
+            summary = self._truncate_to_budget(summary, SUMMARY_BUDGET)
             messages.append(SystemMessage(
                 content=f"【之前的对话摘要】\n{summary}"
             ))
@@ -63,7 +67,8 @@ class ContextBuilder:
         """构建系统提示词"""
         from web.utils.prompt_template import PromptTemplateManager
 
-        memory_text = '\n'.join([f"- {m.content}" for m in relevant_memories]) if relevant_memories else ''
+        memory_lines = [f"- {m.content}" for m in relevant_memories] if relevant_memories else []
+        memory_text = self._truncate_to_budget('\n'.join(memory_lines), MEMORY_BUDGET)
 
         prompt_data = PromptTemplateManager.create_system_prompt(
             friend=self.friend,
@@ -110,6 +115,23 @@ class ContextBuilder:
             result.append(AIMessage(content=m.output))
 
         print(f"[ContextBuilder] 近期消息: {len(selected)} 对, 使用 {used_tokens}/{budget} tokens")
+        return result
+
+    @staticmethod
+    def _truncate_to_budget(text: str, budget: int) -> str:
+        """按行粒度裁剪文本，使 token 数不超过预算"""
+        if not text:
+            return text
+        tokens = TokenCache.estimate_tokens(text)
+        if tokens <= budget:
+            return text
+
+        lines = text.split('\n')
+        while lines and TokenCache.estimate_tokens('\n'.join(lines)) > budget:
+            lines.pop()
+
+        result = '\n'.join(lines)
+        print(f"[ContextBuilder] 文本超预算裁剪: {tokens} -> {TokenCache.estimate_tokens(result)} (预算: {budget})")
         return result
 
 

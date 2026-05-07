@@ -14,7 +14,7 @@ class TokenCache:
     CACHE_TIMEOUT = 60 * 60 * 24  # 24小时
 
     # 上下文窗口 token 预算
-    CONTEXT_BUDGET = 4096
+    CONTEXT_BUDGET = 8192
     # 各部分优先级分配
     SYSTEM_PROMPT_RESERVE = 1500
     SUMMARY_RESERVE = 500
