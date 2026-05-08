@@ -151,7 +151,8 @@ def update_conversation_summary(friend: Friend):
     更新对话摘要：将已摘要范围之外的消息交给 LLM 摘要，
     然后追加到已有摘要中
     """
-    from web.views.friend.message.memory.graph import MemoryGraph
+    import os
+    from langchain_openai import ChatOpenAI
     from langchain_core.messages import SystemMessage, HumanMessage
 
     total = Message.objects.filter(friend=friend).count()
@@ -194,16 +195,17 @@ def update_conversation_summary(friend: Friend):
     user_parts.append(f"【新增对话】\n{conversation_text}\n")
     user_parts.append("请将已有摘要和新增对话合并，生成一份更新后的完整摘要。")
 
-    inputs = {
-        'messages': [
-            SystemMessage(content=system_content),
-            HumanMessage(content='\n'.join(user_parts)),
-        ]
-    }
-
-    app = MemoryGraph.create_app()
-    res = app.invoke(inputs)
-    friend.conversation_summary = res['messages'][-1].content
+    llm = ChatOpenAI(
+        model='deepseek-v3.2',
+        openai_api_key=os.getenv('API_KEY'),
+        openai_api_base=os.getenv('API_BASE'),
+    )
+    messages = [
+        SystemMessage(content=system_content),
+        HumanMessage(content='\n'.join(user_parts)),
+    ]
+    res = llm.invoke(messages)
+    friend.conversation_summary = res.content
     friend.summary_message_count = summary_end
     friend.save()
 
