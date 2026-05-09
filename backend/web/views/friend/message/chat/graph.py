@@ -1,4 +1,6 @@
 import os
+import threading
+import time
 from typing import TypedDict, Annotated, Sequence
 
 import lancedb
@@ -15,10 +17,27 @@ from web.documents.utils.custom_embeddings import CustomEmbeddings
 from web.documents.utils.hybrid_search import hybrid_search
 from web.mcp.client.mcp_client import MCPClientManager
 
+_CACHE_TTL = 60  # 图编译缓存 60 秒
+
 
 class ChatGraph:
-    @staticmethod
-    def create_app():
+    _cached_app = None
+    _cached_time = 0
+    _lock = threading.Lock()
+
+    @classmethod
+    def create_app(cls):
+        if cls._cached_app and (time.time() - cls._cached_time) < _CACHE_TTL:
+            return cls._cached_app
+        with cls._lock:
+            if cls._cached_app and (time.time() - cls._cached_time) < _CACHE_TTL:
+                return cls._cached_app
+            cls._cached_app = cls._build_app()
+            cls._cached_time = time.time()
+            return cls._cached_app
+
+    @classmethod
+    def _build_app(cls):
         @tool
         def get_time() -> str:
             """当需要查询精确时间时，调用此函数。返回格式为：[年-月-日 时:分:秒]"""
