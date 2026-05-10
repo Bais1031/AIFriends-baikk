@@ -1,4 +1,4 @@
-# MemoryGraph 增强：从伪 Agent 到 ReAct Agent
+# MemoryGraph 增强：ReAct Agent
 
 ## 背景
 
