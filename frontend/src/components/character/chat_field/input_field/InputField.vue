@@ -2,7 +2,7 @@
 import SendIcon from "@/components/character/icons/SendIcon.vue";
 import MicIcon from "@/components/character/icons/MicIcon.vue";
 import ImageUpload from "@/components/character/chat_field/input_field/ImageUpload.vue";
-import {onUnmounted, ref, useTemplateRef} from "vue";
+import {computed, onUnmounted, ref, useTemplateRef} from "vue";
 import streamApi from "@/js/http/streamApi.js";
 import Microphone from "@/components/character/chat_field/input_field/Microphone.vue";
 
@@ -11,6 +11,16 @@ const emit = defineEmits(['pushBackMessage', 'addToLastMessage'])
 const inputRef = useTemplateRef('input-ref')
 const message = ref('')
 const selectedImage = ref(null)  // 存储选中的图片文件
+const previewUrl = computed(() => {
+  if (selectedImage.value) {
+    return URL.createObjectURL(selectedImage.value)
+  }
+  return null
+})
+
+function clearSelectedImage() {
+  selectedImage.value = null
+}
 let processId = 0
 const showMic = ref(false)
 
@@ -121,24 +131,28 @@ async function handleSend(event, audio_msq) {
   message.value = ''
 
   // 准备用户消息
+  const imageFile = selectedImage.value
   const userMessage = {
     role: 'user',
     content: content || '[图片]',
-    image_url: selectedImage.value ? URL.createObjectURL(selectedImage.value) : null,
+    image_url: imageFile ? URL.createObjectURL(imageFile) : null,
     id: crypto.randomUUID()
   }
+
+  // 立即清除选中的图片
+  selectedImage.value = null
 
   emit('pushBackMessage', userMessage)
   emit('pushBackMessage', {role: 'ai', content: '', id: crypto.randomUUID()})
 
   try {
     // 根据是否有图片选择不同的API
-    if (selectedImage.value) {
+    if (imageFile) {
       // 有图片，使用多模态API
       const formData = new FormData()
       formData.append('friend_id', props.friendId)
       formData.append('message', content || '')
-      formData.append('image', selectedImage.value)
+      formData.append('image', imageFile)
 
       await streamApi('/api/friend/message/chat/multimodal/', {
         body: formData,
@@ -181,9 +195,6 @@ async function handleSend(event, audio_msq) {
   } catch (err) {
     console.error('Send error:', err)
   }
-
-  // 清除选中的图片
-  selectedImage.value = null
 }
 
 function close() {
@@ -204,34 +215,42 @@ defineExpose({
 </script>
 
 <template>
-  <form v-if="!showMic" @submit.prevent="handleSend" class="absolute bottom-4 left-2 h-12 w-86 flex items-center">
-    <!-- 图片上传按钮 -->
-    <div class="absolute left-2 z-10">
-      <ImageUpload
-        v-model="selectedImage"
-        :class="['image-upload-btn', {'selected-image': selectedImage}]"
-      />
+  <div v-if="!showMic" class="absolute bottom-4 left-2 w-86 flex flex-col items-end gap-1">
+    <!-- 图片预览条 -->
+    <div v-if="previewUrl" class="image-preview-bar">
+      <img :src="previewUrl" alt="预览" class="preview-thumb" />
+      <button @click="clearSelectedImage" class="preview-remove" title="删除图片">✕</button>
     </div>
 
-    <!-- 输入框 -->
-    <input
-        ref="input-ref"
-        v-model="message"
-        class="input bg-black/30 backdrop-blur-sm text-white text-base w-full h-full rounded-2xl pr-20 pl-12"
-        type="text"
-        placeholder="输入消息或上传图片..."
-    >
+    <form @submit.prevent="handleSend" class="w-full h-12 flex items-center relative">
+      <!-- 图片上传按钮 -->
+      <div class="absolute left-2 z-10">
+        <ImageUpload
+          v-model="selectedImage"
+          class="image-upload-btn"
+        />
+      </div>
 
-    <!-- 发送按钮 -->
-    <div @click="handleSend" class="absolute right-2 w-8 h-8 flex justify-center items-center cursor-pointer">
-      <SendIcon />
-    </div>
+      <!-- 输入框 -->
+      <input
+          ref="input-ref"
+          v-model="message"
+          class="input bg-black/30 backdrop-blur-sm text-white text-base w-full h-full rounded-2xl pr-20 pl-12"
+          type="text"
+          placeholder="输入消息或上传图片..."
+      >
 
-    <!-- 麦克风按钮 -->
-    <div @click="showMic = true" class="absolute right-10 w-8 h-8 flex justify-center items-center cursor-pointer">
-      <MicIcon />
-    </div>
-  </form>
+      <!-- 发送按钮 -->
+      <div @click="handleSend" class="absolute right-2 w-8 h-8 flex justify-center items-center cursor-pointer">
+        <SendIcon />
+      </div>
+
+      <!-- 麦克风按钮 -->
+      <div @click="showMic = true" class="absolute right-10 w-8 h-8 flex justify-center items-center cursor-pointer">
+        <MicIcon />
+      </div>
+    </form>
+  </div>
   <microphone
       v-else
       @close="showMic = false"
@@ -252,14 +271,40 @@ defineExpose({
   opacity: 1;
 }
 
-.selected-image {
-  width: 200px;
-  height: 80px;
-  opacity: 1;
+.image-preview-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  border-radius: 8px;
 }
 
-/* 调整输入框在有图片上传时的宽度 */
-.form-with-image {
-  width: calc(100% - 32px) !important;
+.preview-thumb {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.preview-remove {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(255, 77, 79, 0.9);
+  color: white;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.preview-remove:hover {
+  background: rgba(255, 120, 117, 1);
+  transform: scale(1.1);
 }
 </style>
