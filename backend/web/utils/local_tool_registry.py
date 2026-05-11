@@ -1,41 +1,35 @@
 """
-MCP工具注册中心
-用于统一管理和调用MCP工具
+本地工具注册表
+用于管理进程内的工具调用（非 MCP 协议）
 """
 import time
 from typing import Dict, Any, Callable, List, Optional
 from dataclasses import dataclass
-import json
 
 
 @dataclass
 class ToolInfo:
-    """工具信息"""
     name: str
     description: str
-    schema: Dict[str, Any]
     implementation: Callable
     usage_count: int = 0
     total_time: float = 0.0
 
 
-class MCPToolRegistry:
-    """MCP工具注册中心"""
+class LocalToolRegistry:
+    """本地工具注册表（进程内调用，非 MCP 协议）"""
 
     def __init__(self):
         self.tools: Dict[str, ToolInfo] = {}
 
     def register_tool(self, name: str, description: str, implementation: Callable):
-        """注册MCP工具"""
         self.tools[name] = ToolInfo(
             name=name,
             description=description,
-            schema=self._generate_schema(implementation),
             implementation=implementation
         )
 
     async def call_tool(self, name: str, params: Dict[str, Any]) -> Any:
-        """调用MCP工具"""
         if name not in self.tools:
             raise ValueError(f"Tool {name} not registered")
 
@@ -45,21 +39,15 @@ class MCPToolRegistry:
         try:
             result = await tool.implementation(**params)
             duration = time.time() - start_time
-
-            # 更新统计信息
             tool.usage_count += 1
             tool.total_time += duration
-
-            # 记录日志
-            print(f"[MCP] Tool '{name}' called, duration: {duration:.3f}s, usage_count: {tool.usage_count}")
-
+            print(f"[LocalTool] '{name}' called, duration: {duration:.3f}s, usage_count: {tool.usage_count}")
             return result
         except Exception as e:
-            print(f"[MCP] Error calling tool '{name}': {str(e)}")
+            print(f"[LocalTool] Error calling '{name}': {str(e)}")
             raise
 
     def call_tool_sync(self, name: str, params: Dict[str, Any]) -> Any:
-        """同步调用MCP工具（用于非异步环境）"""
         import asyncio
 
         if name not in self.tools:
@@ -69,51 +57,31 @@ class MCPToolRegistry:
         start_time = time.time()
 
         try:
-            # 检查是否已经有运行中的事件循环
             try:
                 loop = asyncio.get_running_loop()
-                # 如果有运行中的循环，使用run_in_executor
                 import concurrent.futures
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     future = executor.submit(asyncio.run, tool.implementation(**params))
                     result = future.result()
             except RuntimeError:
-                # 没有运行中的循环，创建新的
                 result = asyncio.run(tool.implementation(**params))
 
             duration = time.time() - start_time
-
-            # 更新统计信息
             tool.usage_count += 1
             tool.total_time += duration
-
-            # 记录日志
-            print(f"[MCP] Tool '{name}' called (sync), duration: {duration:.3f}s, usage_count: {tool.usage_count}")
-
+            print(f"[LocalTool] '{name}' called (sync), duration: {duration:.3f}s, usage_count: {tool.usage_count}")
             return result
         except Exception as e:
-            print(f"[MCP] Error calling tool '{name}' (sync): {str(e)}")
+            print(f"[LocalTool] Error calling '{name}' (sync): {str(e)}")
             raise
 
-    def _generate_schema(self, implementation: Callable) -> Dict[str, Any]:
-        """生成工具的JSON Schema"""
-        # 简化版本，实际可以使用inspect模块来生成完整的schema
-        return {
-            "type": "object",
-            "properties": {},
-            "required": []
-        }
-
     def get_tool_info(self, name: str) -> Optional[ToolInfo]:
-        """获取工具信息"""
         return self.tools.get(name)
 
     def list_tools(self) -> List[str]:
-        """列出所有工具名称"""
         return list(self.tools.keys())
 
     def get_tool_stats(self) -> Dict[str, Dict[str, Any]]:
-        """获取工具统计信息"""
         stats = {}
         for name, tool in self.tools.items():
             avg_time = tool.total_time / tool.usage_count if tool.usage_count > 0 else 0

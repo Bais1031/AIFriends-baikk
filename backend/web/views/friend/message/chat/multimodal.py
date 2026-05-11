@@ -23,7 +23,7 @@ from web.views.friend.message.chat.graph import ChatGraph
 from web.views.friend.message.memory.update import update_memory
 from web.utils.token_cache import TokenCache
 from web.utils.context_builder import ContextBuilder, should_update_summary, update_conversation_summary
-from web.mcp.init_tools import get_global_registry
+from web.utils.image_tool_init import get_global_registry
 
 
 class SSERenderer(BaseRenderer):
@@ -123,6 +123,26 @@ class MultiModalChatView(APIView):
                 })
 
                 if analysis_result.get('success', False):
+                    # 串联 OCR：如果图片含文字，补充文字信息
+                    try:
+                        ocr_result = self.mcp_registry.call_tool_sync("ocr_extraction", {
+                            "image_path": tmp_file_path
+                        })
+                        if ocr_result.get('success', False) and ocr_result.get('text', '').strip():
+                            analysis_result['ocr_text'] = ocr_result['text']
+                    except Exception as e:
+                        print(f"[Image] OCR提取失败: {e}")
+
+                    # 串联 metadata：零 API 成本，补充基础信息
+                    try:
+                        meta_result = self.mcp_registry.call_tool_sync("image_metadata", {
+                            "image_path": tmp_file_path
+                        })
+                        if meta_result.get('success', False):
+                            analysis_result['metadata'] = meta_result['metadata']
+                    except Exception as e:
+                        print(f"[Image] 元数据提取失败: {e}")
+
                     image_analysis = analysis_result
                 else:
                     image_analysis = None
@@ -146,7 +166,13 @@ class MultiModalChatView(APIView):
     def event_stream(self, friend, user_message, image_url, image_caption, image_analysis):
         """生成流式响应"""
         # 使用 ContextBuilder 构建上下文
-        image_analysis_text = image_analysis.get('analysis', '') if image_analysis else ""
+        if image_analysis:
+            image_analysis_text = image_analysis.get('analysis', '')
+            ocr_text = image_analysis.get('ocr_text', '').strip()
+            if ocr_text:
+                image_analysis_text += f"\n\n图片中包含的文字内容：{ocr_text}"
+        else:
+            image_analysis_text = ""
         builder = ContextBuilder(
             friend=friend,
             current_message=user_message,
