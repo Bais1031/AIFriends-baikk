@@ -6,20 +6,20 @@ defineProps(['message', 'character'])
 const user = useUserStore()
 
 const previewImage = (url) => {
-  // 创建模态框显示图片
-  const modal = document.createElement('div');
-  modal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4';
-  modal.onclick = () => document.body.removeChild(modal);
+  const dialog = document.createElement('dialog');
+  dialog.className = 'image-preview-dialog';
+  dialog.onclick = () => {
+    dialog.close();
+    dialog.remove();
+  };
 
   const img = document.createElement('img');
   img.src = url;
-  img.className = 'max-w-full max-h-[90vh] rounded-lg';
-  img.onclick = (e) => {
-    e.stopPropagation();
-  };
+  img.onclick = (e) => e.stopPropagation();
 
-  modal.appendChild(img);
-  document.body.appendChild(modal);
+  dialog.appendChild(img);
+  document.body.appendChild(dialog);
+  dialog.showModal();
 }
 </script>
 
@@ -71,6 +71,32 @@ const previewImage = (url) => {
 </template>
 
 <style scoped>
+.image-preview-dialog {
+  background: rgba(0, 0, 0, 0.75);
+  border: none;
+  max-width: 100vw;
+  max-height: 100vh;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.image-preview-dialog::backdrop {
+  background: transparent;
+}
+
+.image-preview-dialog img {
+  max-width: 100%;
+  max-height: 90vh;
+  border-radius: 8px;
+  cursor: default;
+}
+
 .image-container {
   position: relative;
   display: flex;
