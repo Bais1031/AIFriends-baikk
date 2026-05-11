@@ -16,10 +16,10 @@ class ImageAnalysisTools:
     def __init__(self):
         self.api_key = os.getenv("API_KEY")
         self.api_base = os.getenv("API_BASE")
-        self.vision_url = "https://dashscope.aliyuncs.com/api/v1/services/vision/image-recognition/image-description"
+        self.vision_model = "qwen2.5-vl-3b-instruct"
 
     async def analyze_image_vision(self, image_path: str, prompt: str = "") -> Dict[str, Any]:
-        """使用阿里云视觉 API 分析图片内容"""
+        """使用阿里云 OpenAI 兼容模式 + qwen2.5-vl 视觉模型分析图片内容"""
         try:
             with open(image_path, 'rb') as f:
                 image_data = f.read()
@@ -36,45 +36,52 @@ class ImageAnalysisTools:
             else:
                 mime_type = 'image/jpeg'
 
+            image_url = f"data:{mime_type};base64,{image_base64}"
+            user_prompt = prompt or "请详细描述这张图片的内容，包括人物、场景、动作、颜色等关键信息。"
+
             headers = {
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self.api_key}"
             }
 
-            description_request = {
-                "model": "image-description-vision",
-                "input": {
-                    "image": f"data:{mime_type};base64,{image_base64}"
-                }
+            request_body = {
+                "model": self.vision_model,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "image_url", "image_url": {"url": image_url}},
+                            {"type": "text", "text": user_prompt}
+                        ]
+                    }
+                ]
             }
 
-            async with AsyncClient() as client:
+            url = f"{self.api_base}/chat/completions"
+
+            async with AsyncClient(timeout=60) as client:
                 response = await client.post(
-                    self.vision_url,
+                    url,
                     headers=headers,
-                    json=description_request
+                    json=request_body
                 )
 
                 if response.status_code == 200:
                     result = response.json()
-                    if 'output' in result:
-                        description = result['output']['text']
-                    else:
-                        description = "未获取到图像描述"
+                    description = result['choices'][0]['message']['content']
                 else:
+                    print(f"[Vision] API 调用失败: status={response.status_code}, body={response.text[:500]}")
                     description = await self._generate_fallback_description(image_path)
-
-            if prompt:
-                description += f"\n\n分析要求: {prompt}"
 
             return {
                 "analysis": description,
-                "model": "aliyun-vision",
+                "model": self.vision_model,
                 "timestamp": time.time(),
                 "success": True
             }
 
         except Exception as e:
+            print(f"[Vision] 图片分析异常: {e}")
             return {
                 "error": f"图像分析失败: {str(e)}",
                 "success": False
