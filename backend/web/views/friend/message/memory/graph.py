@@ -34,6 +34,7 @@ class MemoryGraph:
             model='deepseek-v3.2',
             openai_api_key=os.getenv('API_KEY'),
             openai_api_base=os.getenv('API_BASE'),
+            request_timeout=30,
         ).bind_tools(tools)
 
         class AgentState(TypedDict):

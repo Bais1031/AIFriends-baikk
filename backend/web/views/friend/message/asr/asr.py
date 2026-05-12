@@ -19,7 +19,14 @@ class ASRView(APIView):
                 'result': '音频不存在'
             })
         pcm_data = audio.read()
-        text = asyncio.run(self.run_asr_tasks(pcm_data))
+        try:
+            text = asyncio.run(self.run_asr_tasks(pcm_data))
+        except Exception as e:
+            print(f"[ASR] 语音识别失败: {e}")
+            return Response({
+                'result': 'error',
+                'text': '',
+            })
         return Response({
             'result': 'success',
             'text': text,
@@ -45,15 +52,18 @@ class ASRView(APIView):
 
     async def asr_receiver(self, ws):
         text = ''
-        async for msg in ws:
-            data = json.loads(msg)
-            event = data['header']['event']
-            if event == 'result-generated':
-                output = data['payload']['output']
-                if output.get('transcription', None) and output['transcription']['sentence_end']:
-                    text += output['transcription']['text']
-            elif event in ['task-finished', 'task-failed']:
-                break
+        try:
+            async for msg in ws:
+                data = json.loads(msg)
+                event = data['header']['event']
+                if event == 'result-generated':
+                    output = data['payload']['output']
+                    if output.get('transcription', None) and output['transcription']['sentence_end']:
+                        text += output['transcription']['text']
+                elif event in ['task-finished', 'task-failed']:
+                    break
+        except Exception as e:
+            print(f"[ASR] 接收识别结果异常: {e}")
         return text
 
 
@@ -64,7 +74,8 @@ class ASRView(APIView):
         headers = {
             "Authorization": f"Bearer {api_key}"
         }
-        async with websockets.connect(wss_url, additional_headers=headers) as ws:
+        async with websockets.connect(wss_url, additional_headers=headers,
+                                      open_timeout=10, close_timeout=5, ping_timeout=20) as ws:
             await ws.send(json.dumps({
                 "header": {
                     "streaming": "duplex",

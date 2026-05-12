@@ -199,6 +199,7 @@ def update_conversation_summary(friend: Friend):
         model='deepseek-v3.2',
         openai_api_key=os.getenv('API_KEY'),
         openai_api_base=os.getenv('API_BASE'),
+        request_timeout=30,
     )
     messages = [
         SystemMessage(content=system_content),

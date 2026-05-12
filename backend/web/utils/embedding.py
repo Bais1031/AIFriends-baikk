@@ -6,6 +6,7 @@ import os
 from typing import Optional
 
 from openai import OpenAI
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 
 _client = None
@@ -17,10 +18,12 @@ def _get_client() -> OpenAI:
         _client = OpenAI(
             api_key=os.getenv('API_KEY'),
             base_url=os.getenv('API_BASE'),
+            timeout=10,
         )
     return _client
 
 
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10))
 def get_embedding(text: str) -> Optional[list[float]]:
     """生成文本的向量嵌入"""
     if not text or not text.strip():
@@ -35,4 +38,4 @@ def get_embedding(text: str) -> Optional[list[float]]:
         return resp.data[0].embedding
     except Exception as e:
         print(f"[Embedding] 生成向量失败: {e}")
-        return None
+        raise

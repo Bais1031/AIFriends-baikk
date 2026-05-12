@@ -66,86 +66,113 @@ class MessageChatView(APIView):
 
 
     async def tts_sender(self, app, inputs, mq, ws, task_id):
-        async for msg, metadata in app.astream(inputs, stream_mode="messages"):
-            if isinstance(msg, BaseMessageChunk):
-                if msg.content:
-                    await ws.send(json.dumps({
-                        "header": {
-                            "action": "continue-task",
-                            "task_id": task_id,
-                            "streaming": "duplex"
-                        },
-                        "payload": {
-                            "input": {
-                                "text": msg.content,
-                            }
-                        }
-                    }))
-                    mq.put_nowait({'content': msg.content})
-                if hasattr(msg, 'usage_metadata') and msg.usage_metadata:
-                    mq.put_nowait({'usage': msg.usage_metadata})
-        await ws.send(json.dumps({
-            "header": {
-                "action": "finish-task",
-                "task_id": task_id,
-                "streaming": "duplex"
-            },
-            "payload": {
-                "input": {}
-            }
-        }))
+        try:
+            async for msg, metadata in app.astream(inputs, stream_mode="messages"):
+                if isinstance(msg, BaseMessageChunk):
+                    if msg.content:
+                        try:
+                            await ws.send(json.dumps({
+                                "header": {
+                                    "action": "continue-task",
+                                    "task_id": task_id,
+                                    "streaming": "duplex"
+                                },
+                                "payload": {
+                                    "input": {
+                                        "text": msg.content,
+                                    }
+                                }
+                            }))
+                        except Exception as e:
+                            print(f"[TTS] 发送文本到 TTS 失败，降级为纯文本: {e}")
+                        mq.put_nowait({'content': msg.content})
+                    if hasattr(msg, 'usage_metadata') and msg.usage_metadata:
+                        mq.put_nowait({'usage': msg.usage_metadata})
+            try:
+                await ws.send(json.dumps({
+                    "header": {
+                        "action": "finish-task",
+                        "task_id": task_id,
+                        "streaming": "duplex"
+                    },
+                    "payload": {
+                        "input": {}
+                    }
+                }))
+            except Exception:
+                pass
+        except Exception as e:
+            print(f"[TTS] LLM 流式输出异常: {e}")
+            raise
 
 
     async def tts_receiver(self, mq, ws):
-        async for msg in ws:
-            if isinstance(msg, bytes):
-                audio = base64.b64encode(msg).decode('utf-8')
-                mq.put_nowait({'audio': audio})
-            else:
-                data = json.loads(msg)
-                event = data['header']['event']
-                if event in ['task-finished', 'task-failed']:
-                    break
+        try:
+            async for msg in ws:
+                if isinstance(msg, bytes):
+                    audio = base64.b64encode(msg).decode('utf-8')
+                    mq.put_nowait({'audio': audio})
+                else:
+                    data = json.loads(msg)
+                    event = data['header']['event']
+                    if event in ['task-finished', 'task-failed']:
+                        break
+        except Exception as e:
+            print(f"[TTS] 音频接收异常，跳过音频: {e}")
 
 
     async def run_tts_tasks(self, app, inputs, mq, speaker):
-        task_id = uuid.uuid4().hex
-        api_key = os.getenv('API_KEY')
-        wss_url = os.getenv('WSS_URL')
-        headers = {
-            "Authorization": f"Bearer {api_key}"
-        }
-        async with websockets.connect(wss_url, additional_headers=headers) as ws:
-            await ws.send(json.dumps({
-                "header": {
-                    "action": "run-task",
-                    "task_id": task_id,
-                    "streaming": "duplex"
-                },
-                "payload": {
-                    "task_group": "audio",
-                    "task": "tts",
-                    "function": "SpeechSynthesizer",
-                    "model": "cosyvoice-v3-flash",
-                    "parameters": {
-                        "text_type": "PlainText",
-                        "voice": speaker,
-                        "format": "mp3",
-                        "sample_rate": 22050,
-                        "volume": 50,
-                        "rate": 1.25,
-                        "pitch": 1
+        try:
+            task_id = uuid.uuid4().hex
+            api_key = os.getenv('API_KEY')
+            wss_url = os.getenv('WSS_URL')
+            headers = {
+                "Authorization": f"Bearer {api_key}"
+            }
+            async with websockets.connect(wss_url, additional_headers=headers,
+                                          open_timeout=10, close_timeout=5, ping_timeout=20) as ws:
+                await ws.send(json.dumps({
+                    "header": {
+                        "action": "run-task",
+                        "task_id": task_id,
+                        "streaming": "duplex"
                     },
-                    "input": {}
-                }
-            }))
-            async for msg in ws:
-                if json.loads(msg)['header']['event'] == 'task-started':
-                    break
-            await asyncio.gather(
-                self.tts_sender(app, inputs, mq, ws, task_id),
-                self.tts_receiver(mq, ws),
-            )
+                    "payload": {
+                        "task_group": "audio",
+                        "task": "tts",
+                        "function": "SpeechSynthesizer",
+                        "model": "cosyvoice-v3-flash",
+                        "parameters": {
+                            "text_type": "PlainText",
+                            "voice": speaker,
+                            "format": "mp3",
+                            "sample_rate": 22050,
+                            "volume": 50,
+                            "rate": 1.25,
+                            "pitch": 1
+                        },
+                        "input": {}
+                    }
+                }))
+                async for msg in ws:
+                    if json.loads(msg)['header']['event'] == 'task-started':
+                        break
+                await asyncio.gather(
+                    self.tts_sender(app, inputs, mq, ws, task_id),
+                    self.tts_receiver(mq, ws),
+                )
+        except Exception as e:
+            print(f"[TTS] 连接失败，降级为纯文本流: {e}")
+            await self._text_only_stream(app, inputs, mq)
+
+    async def _text_only_stream(self, app, inputs, mq):
+        """TTS 不可用时的降级方案：只输出文本，不合成语音"""
+        async for msg, metadata in app.astream(inputs, stream_mode="messages"):
+            if isinstance(msg, BaseMessageChunk):
+                if msg.content:
+                    mq.put_nowait({'content': msg.content})
+                if hasattr(msg, 'usage_metadata') and msg.usage_metadata:
+                    mq.put_nowait({'usage': msg.usage_metadata})
 
 
     def work(self, app, inputs, mq, speaker):

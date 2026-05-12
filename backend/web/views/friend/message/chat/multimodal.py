@@ -223,60 +223,67 @@ class MultiModalChatView(APIView):
                 if isinstance(msg, BaseMessageChunk):
                     if msg.content:
                         content = msg.content
-                        await ws.send(json.dumps({
-                            "header": {
-                                "action": "continue-task",
-                                "task_id": task_id,
-                                "streaming": "duplex"
-                            },
-                            "payload": {
-                                "input": {
-                                    "text": content,
+                        try:
+                            await ws.send(json.dumps({
+                                "header": {
+                                    "action": "continue-task",
+                                    "task_id": task_id,
+                                    "streaming": "duplex"
+                                },
+                                "payload": {
+                                    "input": {
+                                        "text": content,
+                                    }
                                 }
-                            }
-                        }))
+                            }))
+                        except Exception as e:
+                            print(f"[TTS] 发送文本到 TTS 失败，降级为纯文本: {e}")
                         mq.put_nowait({'content': content})
                     if hasattr(msg, 'usage_metadata') and msg.usage_metadata:
                         mq.put_nowait({'usage': msg.usage_metadata})
-
-            await ws.send(json.dumps({
-                "header": {
-                    "action": "finish-task",
-                    "task_id": task_id,
-                    "streaming": "duplex"
-                },
-                "payload": {
-                    "input": {}
-                }
-            }))
+            try:
+                await ws.send(json.dumps({
+                    "header": {
+                        "action": "finish-task",
+                        "task_id": task_id,
+                        "streaming": "duplex"
+                    },
+                    "payload": {
+                        "input": {}
+                    }
+                }))
+            except Exception:
+                pass
         except Exception as e:
-            print(f"[TTSSender] 发送异常: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"[TTS] LLM 流式输出异常: {e}")
             raise
 
     async def tts_receiver(self, mq, ws):
-        async for msg in ws:
-            if isinstance(msg, bytes):
-                audio = base64.b64encode(msg).decode('utf-8')
-                mq.put_nowait({'audio': audio})
-            else:
-                data = json.loads(msg)
-                event = data['header']['event']
-                if event in ['task-finished', 'task-failed']:
-                    break
+        try:
+            async for msg in ws:
+                if isinstance(msg, bytes):
+                    audio = base64.b64encode(msg).decode('utf-8')
+                    mq.put_nowait({'audio': audio})
+                else:
+                    data = json.loads(msg)
+                    event = data['header']['event']
+                    if event in ['task-finished', 'task-failed']:
+                        break
+        except Exception as e:
+            print(f"[TTS] 音频接收异常，跳过音频: {e}")
 
     async def run_tts_tasks(self, app, inputs, mq, speaker):
-        task_id = uuid.uuid4().hex
-        api_key = os.getenv('API_KEY')
-        wss_url = os.getenv('WSS_URL')
-
-        headers = {
-            "Authorization": f"Bearer {api_key}"
-        }
-
         try:
-            async with websockets.connect(wss_url, additional_headers=headers) as ws:
+            task_id = uuid.uuid4().hex
+            api_key = os.getenv('API_KEY')
+            wss_url = os.getenv('WSS_URL')
+
+            headers = {
+                "Authorization": f"Bearer {api_key}"
+            }
+
+            async with websockets.connect(wss_url, additional_headers=headers,
+                                          open_timeout=10, close_timeout=5, ping_timeout=20) as ws:
                 await ws.send(json.dumps({
                     "header": {
                         "action": "run-task",
@@ -311,10 +318,17 @@ class MultiModalChatView(APIView):
                 )
 
         except Exception as e:
-            print(f"[TTS] TTS任务异常: {e}")
-            import traceback
-            traceback.print_exc()
-            raise
+            print(f"[TTS] 连接失败，降级为纯文本流: {e}")
+            await self._text_only_stream(app, inputs, mq)
+
+    async def _text_only_stream(self, app, inputs, mq):
+        """TTS 不可用时的降级方案：只输出文本，不合成语音"""
+        async for msg, metadata in app.astream(inputs, stream_mode="messages"):
+            if isinstance(msg, BaseMessageChunk):
+                if msg.content:
+                    mq.put_nowait({'content': msg.content})
+                if hasattr(msg, 'usage_metadata') and msg.usage_metadata:
+                    mq.put_nowait({'usage': msg.usage_metadata})
 
     def work(self, app, inputs, mq, speaker):
         try:

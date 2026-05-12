@@ -9,6 +9,7 @@ from typing import Dict, Any
 
 from PIL import Image
 from httpx import AsyncClient
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 
 class ImageAnalysisTools:
@@ -39,39 +40,11 @@ class ImageAnalysisTools:
             image_url = f"data:{mime_type};base64,{image_base64}"
             user_prompt = prompt or "请详细描述这张图片的内容，包括人物、场景、动作、颜色等关键信息。"
 
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.api_key}"
-            }
-
-            request_body = {
-                "model": self.vision_model,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "image_url", "image_url": {"url": image_url}},
-                            {"type": "text", "text": user_prompt}
-                        ]
-                    }
-                ]
-            }
-
-            url = f"{self.api_base}/chat/completions"
-
-            async with AsyncClient(timeout=60) as client:
-                response = await client.post(
-                    url,
-                    headers=headers,
-                    json=request_body
-                )
-
-                if response.status_code == 200:
-                    result = response.json()
-                    description = result['choices'][0]['message']['content']
-                else:
-                    print(f"[Vision] API 调用失败: status={response.status_code}, body={response.text[:500]}")
-                    description = await self._generate_fallback_description(image_path)
+            try:
+                description = await self._call_vision_api(image_url, user_prompt)
+            except Exception as e:
+                print(f"[Vision] API 重试耗尽，使用 fallback: {e}")
+                description = await self._generate_fallback_description(image_path)
 
             return {
                 "analysis": description,
@@ -87,6 +60,34 @@ class ImageAnalysisTools:
                 "success": False
             }
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10))
+    async def _call_vision_api(self, image_url: str, prompt: str) -> str:
+        """调用 Vision API，带重试"""
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+        request_body = {
+            "model": self.vision_model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image_url", "image_url": {"url": image_url}},
+                        {"type": "text", "text": prompt}
+                    ]
+                }
+            ]
+        }
+        url = f"{self.api_base}/chat/completions"
+
+        async with AsyncClient(timeout=60) as client:
+            response = await client.post(url, headers=headers, json=request_body)
+            if response.status_code != 200:
+                raise Exception(f"status={response.status_code}, body={response.text[:200]}")
+            return response.json()['choices'][0]['message']['content']
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10))
     async def extract_text_from_image(self, image_path: str) -> Dict[str, Any]:
         """使用阿里云 OCR API 提取图片中的文字"""
         try:
@@ -108,7 +109,7 @@ class ImageAnalysisTools:
                 }
             }
 
-            async with AsyncClient() as client:
+            async with AsyncClient(timeout=30) as client:
                 response = await client.post(
                     ocr_url,
                     headers=headers,
@@ -135,6 +136,7 @@ class ImageAnalysisTools:
             }
 
         except Exception as e:
+            print(f"[OCR] 提取失败: {e}")
             return {
                 "error": f"OCR提取失败: {str(e)}",
                 "success": False
