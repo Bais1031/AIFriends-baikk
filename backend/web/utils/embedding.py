@@ -1,6 +1,6 @@
 """
 向量嵌入工具
-使用阿里云 text-embedding-v3 生成文本向量
+使用阿里云 text-embedding-v4 生成文本向量
 """
 import os
 from typing import Optional
@@ -28,7 +28,7 @@ def get_embedding(text: str) -> Optional[list[float]]:
     try:
         client = _get_client()
         resp = client.embeddings.create(
-            model="text-embedding-v3",
+            model="text-embedding-v4",
             input=text[:2048],
             dimensions=1024,
         )

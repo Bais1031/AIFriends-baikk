@@ -17,7 +17,7 @@ from web.documents.utils.custom_embeddings import CustomEmbeddings
 from web.documents.utils.hybrid_search import hybrid_search
 from web.mcp.client.mcp_client import MCPClientManager
 
-_CACHE_TTL = 60  # 图编译缓存 60 秒
+_CACHE_TTL = 300  # 图编译缓存 5 分钟
 
 
 class ChatGraph:
