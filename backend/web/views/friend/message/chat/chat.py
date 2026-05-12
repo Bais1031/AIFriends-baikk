@@ -151,6 +151,11 @@ class MessageChatView(APIView):
     def work(self, app, inputs, mq, speaker):
         try:
             asyncio.run(self.run_tts_tasks(app, inputs, mq, speaker))
+        except Exception as e:
+            print(f"[Work] 工作线程异常: {e}")
+            import traceback
+            traceback.print_exc()
+            mq.put({'content': '抱歉，处理过程中遇到了问题，请稍后重试。'})
         finally:
             mq.put_nowait(None)
 

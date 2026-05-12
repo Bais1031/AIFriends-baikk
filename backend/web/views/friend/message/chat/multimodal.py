@@ -323,7 +323,7 @@ class MultiModalChatView(APIView):
             print(f"[Work] 工作线程异常: {e}")
             import traceback
             traceback.print_exc()
-            mq.put({'content': f"处理过程中出现了错误：{str(e)}"})
+            mq.put({'content': '抱歉，处理过程中遇到了问题，请稍后重试。'})
         finally:
             mq.put_nowait(None)
 
