@@ -4,7 +4,7 @@ import json
 import os
 import threading
 import uuid
-from queue import Queue
+from queue import Queue, Full
 
 import websockets
 from django.http import StreamingHttpResponse
@@ -65,9 +65,12 @@ class MessageChatView(APIView):
         return response
 
 
-    async def tts_sender(self, app, inputs, mq, ws, task_id):
+    async def tts_sender(self, app, inputs, mq, ws, task_id, cancel):
         try:
             async for msg, metadata in app.astream(inputs, stream_mode="messages"):
+                if cancel.is_set():
+                    print("[TTS] 用户已断开，提前终止流式输出")
+                    break
                 if isinstance(msg, BaseMessageChunk):
                     if msg.content:
                         try:
@@ -85,9 +88,16 @@ class MessageChatView(APIView):
                             }))
                         except Exception as e:
                             print(f"[TTS] 发送文本到 TTS 失败，降级为纯文本: {e}")
-                        mq.put_nowait({'content': msg.content})
+                        try:
+                            mq.put({'content': msg.content}, timeout=5)
+                        except Full:
+                            print("[TTS] 队列已满，跳过当前 chunk")
+                            break
                     if hasattr(msg, 'usage_metadata') and msg.usage_metadata:
-                        mq.put_nowait({'usage': msg.usage_metadata})
+                        try:
+                            mq.put({'usage': msg.usage_metadata}, timeout=5)
+                        except Full:
+                            break
             try:
                 await ws.send(json.dumps({
                     "header": {
@@ -106,12 +116,16 @@ class MessageChatView(APIView):
             raise
 
 
-    async def tts_receiver(self, mq, ws):
+    async def tts_receiver(self, mq, ws, cancel):
         try:
             async for msg in ws:
+                if cancel.is_set():
+                    break
                 if isinstance(msg, bytes):
-                    audio = base64.b64encode(msg).decode('utf-8')
-                    mq.put_nowait({'audio': audio})
+                    try:
+                        mq.put({'audio': base64.b64encode(msg).decode('utf-8')}, timeout=5)
+                    except Full:
+                        break
                 else:
                     data = json.loads(msg)
                     event = data['header']['event']
@@ -121,7 +135,9 @@ class MessageChatView(APIView):
             print(f"[TTS] 音频接收异常，跳过音频: {e}")
 
 
-    async def run_tts_tasks(self, app, inputs, mq, speaker):
+    async def run_tts_tasks(self, app, inputs, mq, speaker, cancel):
+        if cancel.is_set():
+            return
         try:
             task_id = uuid.uuid4().hex
             api_key = os.getenv('API_KEY')
@@ -158,53 +174,82 @@ class MessageChatView(APIView):
                     if json.loads(msg)['header']['event'] == 'task-started':
                         break
                 await asyncio.gather(
-                    self.tts_sender(app, inputs, mq, ws, task_id),
-                    self.tts_receiver(mq, ws),
+                    self.tts_sender(app, inputs, mq, ws, task_id, cancel),
+                    self.tts_receiver(mq, ws, cancel),
                 )
         except Exception as e:
+            if cancel.is_set():
+                return
             print(f"[TTS] 连接失败，降级为纯文本流: {e}")
-            await self._text_only_stream(app, inputs, mq)
+            await self._text_only_stream(app, inputs, mq, cancel)
 
-    async def _text_only_stream(self, app, inputs, mq):
+    async def _text_only_stream(self, app, inputs, mq, cancel):
         """TTS 不可用时的降级方案：只输出文本，不合成语音"""
         async for msg, metadata in app.astream(inputs, stream_mode="messages"):
+            if cancel.is_set():
+                break
             if isinstance(msg, BaseMessageChunk):
                 if msg.content:
-                    mq.put_nowait({'content': msg.content})
+                    try:
+                        mq.put({'content': msg.content}, timeout=5)
+                    except Full:
+                        break
                 if hasattr(msg, 'usage_metadata') and msg.usage_metadata:
-                    mq.put_nowait({'usage': msg.usage_metadata})
+                    try:
+                        mq.put({'usage': msg.usage_metadata}, timeout=5)
+                    except Full:
+                        break
 
 
-    def work(self, app, inputs, mq, speaker):
+    def work(self, app, inputs, mq, speaker, cancel):
         try:
-            asyncio.run(self.run_tts_tasks(app, inputs, mq, speaker))
+            asyncio.run(self.run_tts_tasks(app, inputs, mq, speaker, cancel))
         except Exception as e:
             print(f"[Work] 工作线程异常: {e}")
             import traceback
             traceback.print_exc()
-            mq.put({'content': '抱歉，处理过程中遇到了问题，请稍后重试。'})
+            try:
+                mq.put({'content': '抱歉，处理过程中遇到了问题，请稍后重试。'}, timeout=5)
+            except Full:
+                pass
         finally:
-            mq.put_nowait(None)
+            try:
+                mq.put_nowait(None)
+            except Full:
+                pass
 
 
     def event_stream(self, app, inputs, friend, message):
-        mq = Queue()
-        thread = threading.Thread(target=self.work, args=(app, inputs, mq, friend.character.speaker))
+        cancel = threading.Event()
+        mq = Queue(maxsize=100)
+        thread = threading.Thread(
+            target=self.work,
+            args=(app, inputs, mq, friend.character.speaker, cancel),
+            daemon=True,
+        )
         thread.start()
 
         full_output = ''
         full_usage = {}
-        while True:
-            msg = mq.get()
-            if not msg:
-                break
-            if msg.get('content', None):
-                full_output += msg['content']
-                yield f'data: {json.dumps({'content': msg['content']}, ensure_ascii=False)}\n\n'
-            if msg.get('audio', None):
-                yield f'data: {json.dumps({'audio': msg['audio']}, ensure_ascii=False)}\n\n'
-            if msg.get('usage', None):
-                full_usage = msg['usage']
+        try:
+            while True:
+                try:
+                    msg = mq.get(timeout=30)
+                except Exception:
+                    break
+                if not msg:
+                    break
+                if msg.get('content', None):
+                    full_output += msg['content']
+                    yield f'data: {json.dumps({'content': msg['content']}, ensure_ascii=False)}\n\n'
+                if msg.get('audio', None):
+                    yield f'data: {json.dumps({'audio': msg['audio']}, ensure_ascii=False)}\n\n'
+                if msg.get('usage', None):
+                    full_usage = msg['usage']
+        except Exception:
+            pass
+        finally:
+            cancel.set()
 
         yield 'data: [DONE]\n\n'
 
