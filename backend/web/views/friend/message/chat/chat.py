@@ -19,6 +19,7 @@ from web.views.friend.message.chat.graph import ChatGraph
 from web.views.friend.message.memory.update import update_memory
 from web.utils.token_cache import TokenCache
 from web.utils.context_builder import ContextBuilder, should_update_summary, update_conversation_summary
+from web.throttles import ChatThrottle
 
 
 class SSERenderer(BaseRenderer):
@@ -35,6 +36,7 @@ MEMORY_UPDATE_INTERVAL = 5
 class MessageChatView(APIView):
     permission_classes = [IsAuthenticated]
     renderer_classes = [SSERenderer]
+    throttle_classes = [ChatThrottle]
 
     def post(self, request):
         friend_id = request.data['friend_id']

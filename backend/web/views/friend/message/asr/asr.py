@@ -7,10 +7,12 @@ import websockets
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from web.throttles import ASRThrottle
 
 
 class ASRView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [ASRThrottle]
 
     def post(self, request):
         audio = request.FILES.get('audio')

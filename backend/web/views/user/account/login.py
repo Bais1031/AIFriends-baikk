@@ -2,11 +2,13 @@ from django.contrib.auth import authenticate
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
+from web.throttles import AuthThrottle
 
 from web.models.user import UserProfile
 
 
 class LoginView(APIView):
+    throttle_classes = [AuthThrottle]
     def post(self, request, *args, **kwargs):
         try:
             username = request.data.get("username").strip()

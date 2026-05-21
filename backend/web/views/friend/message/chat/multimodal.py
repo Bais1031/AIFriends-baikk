@@ -24,6 +24,7 @@ from web.views.friend.message.memory.update import update_memory
 from web.utils.token_cache import TokenCache
 from web.utils.context_builder import ContextBuilder, should_update_summary, update_conversation_summary
 from web.utils.image_tool_init import get_global_registry
+from web.throttles import ChatThrottle
 
 
 class SSERenderer(BaseRenderer):
@@ -42,6 +43,7 @@ class MultiModalChatView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
     renderer_classes = [SSERenderer]
+    throttle_classes = [ChatThrottle]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
