@@ -1,6 +1,6 @@
 <script setup>
 import Message from "@/components/character/chat_field/chat_history/message/Message.vue";
-import {nextTick, onBeforeUnmount, onMounted, useTemplateRef} from "vue";
+import {nextTick, onBeforeUnmount, onMounted, useTemplateRef, watch} from "vue";
 import api from "@/js/http/api.js";
 
 const props = defineProps(['history', 'friendId', 'character', 'inline', 'selectMode', 'selectedIds'])
@@ -50,11 +50,13 @@ async function loadMore() {
           role: 'ai',
           content: m.output,
           id: crypto.randomUUID(),
+          dbId: m.id,
         })
         emit('pushFrontMessage', {
           role: 'user',
           content: m.user_message,
           id: crypto.randomUUID(),
+          dbId: m.id,
         })
         lastMessageId = m.id
       }
@@ -70,6 +72,16 @@ async function loadMore() {
     }
   }
 }
+
+// 切换对话时重新加载
+watch(() => props.friendId, (newId, oldId) => {
+  if (newId && newId !== oldId) {
+    reset()
+    nextTick(() => {
+      loadMore()
+    })
+  }
+})
 
 let observer = null
 onMounted(async () => {

@@ -105,9 +105,16 @@ async function handleClearAll() {
 async function handleDeleteSelected() {
   if (selectedIds.value.size === 0) return
   try {
+    // 收集选中消息的数据库 ID（去重）
+    const dbIds = new Set()
+    for (const m of history.value) {
+      if (selectedIds.value.has(m.id) && m.dbId) {
+        dbIds.add(m.dbId)
+      }
+    }
     await api.post('/api/friend/message/delete_messages/', {
       friend_id: props.friend.id,
-      message_ids: Array.from(selectedIds.value),
+      message_ids: Array.from(dbIds),
     })
     history.value = history.value.filter(m => !selectedIds.value.has(m.id))
     exitSelectMode()
