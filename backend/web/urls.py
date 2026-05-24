@@ -12,6 +12,8 @@ from web.views.friend.message.asr.asr import ASRView
 from web.views.friend.message.chat.chat import MessageChatView
 from web.views.friend.message.chat.multimodal import MultiModalChatView
 from web.views.friend.message.get_history import GetHistoryView
+from web.views.friend.message.clear_history import ClearHistoryView
+from web.views.friend.message.delete_messages import DeleteMessagesView
 from web.views.friend.remove import RemoveFriendView
 from web.views.homepage.index import HomepageIndexView
 from web.views.index import index
@@ -44,6 +46,8 @@ urlpatterns = [
     path('api/friend/message/chat/', MessageChatView.as_view()),
     path('api/friend/message/chat/multimodal/', MultiModalChatView.as_view()),
     path('api/friend/message/get_history/', GetHistoryView.as_view()),
+    path('api/friend/message/clear_history/', ClearHistoryView.as_view()),
+    path('api/friend/message/delete_messages/', DeleteMessagesView.as_view()),
     path('api/friend/message/asr/asr/', ASRView.as_view()),
 
     path('', index),

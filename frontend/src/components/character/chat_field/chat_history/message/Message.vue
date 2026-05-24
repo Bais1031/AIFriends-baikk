@@ -1,7 +1,8 @@
 <script setup>
 import {useUserStore} from "@/stores/user.js";
 
-defineProps(['message', 'character'])
+const props = defineProps(['message', 'character', 'selectMode', 'selected'])
+const emit = defineEmits(['toggleSelect'])
 
 const user = useUserStore()
 
@@ -24,7 +25,12 @@ const previewImage = (url) => {
 </script>
 
 <template>
-  <div v-if="message.content || message.image_url">
+  <div v-if="message.content || message.image_url" class="message-row" :class="{selectable: selectMode, selected: selected}" @click="selectMode && emit('toggleSelect')">
+    <!-- 选择模式复选框 -->
+    <div v-if="selectMode" class="checkbox-wrapper">
+      <input type="checkbox" class="checkbox checkbox-sm checkbox-primary" :checked="selected" @click.stop="emit('toggleSelect')" />
+    </div>
+
     <div v-if="message.role === 'ai'" class="chat chat-start">
       <div class="chat-image avatar">
         <div class="w-10 rounded-full">
@@ -38,7 +44,7 @@ const previewImage = (url) => {
             :src="message.image_url"
             alt="AI生成的图片"
             class="max-w-full rounded-lg cursor-pointer"
-            @click="previewImage(message.image_url)"
+            @click.stop="selectMode ? null : previewImage(message.image_url)"
           />
           <div v-if="message.image_caption" class="image-caption mt-1 text-xs text-gray-500">
             {{ message.image_caption }}
@@ -59,7 +65,7 @@ const previewImage = (url) => {
             :src="message.image_url"
             alt="用户发送的图片"
             class="max-w-full rounded-lg cursor-pointer"
-            @click="previewImage(message.image_url)"
+            @click.stop="selectMode ? null : previewImage(message.image_url)"
           />
           <div v-if="message.image_caption" class="image-caption mt-1 text-xs text-gray-500">
             {{ message.image_caption }}
@@ -71,6 +77,41 @@ const previewImage = (url) => {
 </template>
 
 <style scoped>
+.message-row {
+  display: flex;
+  align-items: flex-start;
+  position: relative;
+}
+
+.message-row.selectable {
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background-color 0.15s;
+}
+
+.message-row.selectable:hover {
+  background-color: oklch(var(--b2) / 0.5);
+}
+
+.message-row.selectable.selected {
+  background-color: oklch(var(--p) / 0.1);
+}
+
+.checkbox-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  min-height: 40px;
+  padding-top: 12px;
+  flex-shrink: 0;
+}
+
+.message-row .chat {
+  flex: 1;
+  min-width: 0;
+}
+
 .image-preview-dialog {
   background: rgba(0, 0, 0, 0.75);
   border: none;

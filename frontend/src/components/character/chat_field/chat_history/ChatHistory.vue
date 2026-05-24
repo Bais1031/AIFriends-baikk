@@ -3,8 +3,8 @@ import Message from "@/components/character/chat_field/chat_history/message/Mess
 import {nextTick, onBeforeUnmount, onMounted, useTemplateRef} from "vue";
 import api from "@/js/http/api.js";
 
-const props = defineProps(['history', 'friendId', 'character', 'inline'])
-const emit = defineEmits(['pushFrontMessage'])
+const props = defineProps(['history', 'friendId', 'character', 'inline', 'selectMode', 'selectedIds'])
+const emit = defineEmits(['pushFrontMessage', 'toggleSelect'])
 const scrollRef = useTemplateRef('scroll-ref')
 const sentinelRef = useTemplateRef('sentinel-ref')
 let isLoading = false
@@ -99,8 +99,15 @@ async function scrollToBottom() {
   scrollRef.value.scrollTop = scrollRef.value.scrollHeight
 }
 
+function reset() {
+  isLoading = false
+  hasMessages = true
+  lastMessageId = 0
+}
+
 defineExpose({
-  scrollToBottom
+  scrollToBottom,
+  reset,
 })
 </script>
 
@@ -114,6 +121,9 @@ defineExpose({
         :key="message.id"
         :message="message"
         :character="character"
+        :selectMode="selectMode"
+        :selected="selectedIds?.has(message.id)"
+        @toggleSelect="emit('toggleSelect', message.id)"
     />
   </div>
 </template>
