@@ -21,6 +21,7 @@ class GetHistoryView(APIView):
                     'id': m.id,
                     'user_message': m.user_message,
                     'output': m.output,
+                    'create_time': m.create_time.isoformat(),
                 })
             return Response({
                 'result': 'success',

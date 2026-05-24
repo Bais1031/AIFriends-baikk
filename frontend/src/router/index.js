@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomepageIndex from "@/views/homepage/HomepageIndex.vue";
-import FriendIndex from "@/views/friend/FriendIndex.vue";
+import ChatView from "@/views/friend/ChatView.vue";
 import CreateIndex from "@/views/create/CreateIndex.vue";
 import NotFoundIndex from "@/views/error/NotFoundIndex.vue";
 import LoginIndex from "@/views/user/account/LoginIndex.vue";
@@ -23,8 +23,16 @@ const router = createRouter({
     },
     {
       path:'/friend/',
-      component:FriendIndex,
+      component:ChatView,
       name:'friend-index',
+      meta: {
+        needLogin: true,
+      },
+    },
+    {
+      path:'/friend/:friend_id/',
+      component:ChatView,
+      name:'friend-chat',
       meta: {
         needLogin: true,
       },

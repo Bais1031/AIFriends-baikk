@@ -1,9 +1,11 @@
 <script setup>
-defineProps(['character'])
+defineProps(['character', 'inline'])
 </script>
 
 <template>
-  <div class="absolute left-2 right-22 top-6 h-10 w-fit rounded-full bg-black/50 flex items-center gap-2 px-2">
+  <div :class="inline
+    ? 'absolute left-4 right-auto top-4 h-10 w-fit rounded-full bg-black/50 flex items-center gap-2 px-2 z-10'
+    : 'absolute left-2 right-22 top-6 h-10 w-fit rounded-full bg-black/50 flex items-center gap-2 px-2'">
     <div class="avatar">
       <div class="w-8 rounded-full">
         <img :src="character.photo" alt="">

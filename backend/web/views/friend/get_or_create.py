@@ -10,14 +10,20 @@ class GetOrCreateFriendView(APIView):
     permission_classes = [IsAuthenticated]
     def post(self, request):
         try:
-            character_id = request.data['character_id']
+            friend_id = request.data.get('friend_id')
+            character_id = request.data.get('character_id')
             user = request.user
             user_profile = UserProfile.objects.get(user=user)
-            friends = Friend.objects.filter(character_id=character_id, me=user_profile)
-            if friends.exists():
-                friend = friends.first()
+            if friend_id:
+                friend = Friend.objects.filter(id=friend_id, me=user_profile).first()
+                if not friend:
+                    return Response({'result': '好友不存在'})
             else:
-                friend = Friend.objects.create(character_id=character_id, me=user_profile)
+                friends = Friend.objects.filter(character_id=character_id, me=user_profile)
+                if friends.exists():
+                    friend = friends.first()
+                else:
+                    friend = Friend.objects.create(character_id=character_id, me=user_profile)
             character = friend.character
             author = character.author
             return Response({

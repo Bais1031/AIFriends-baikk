@@ -6,7 +6,7 @@ import {computed, onUnmounted, ref, useTemplateRef} from "vue";
 import streamApi from "@/js/http/streamApi.js";
 import Microphone from "@/components/character/chat_field/input_field/Microphone.vue";
 
-const props = defineProps(['friendId'])
+const props = defineProps(['friendId', 'inline'])
 const emit = defineEmits(['pushBackMessage', 'addToLastMessage'])
 const inputRef = useTemplateRef('input-ref')
 const message = ref('')
@@ -215,7 +215,9 @@ defineExpose({
 </script>
 
 <template>
-  <div v-if="!showMic" class="absolute bottom-4 left-2 w-86 flex flex-col items-end gap-1">
+  <div v-if="!showMic" :class="inline
+    ? 'w-full px-4 pb-4 flex flex-col items-end gap-1'
+    : 'absolute bottom-4 left-2 w-86 flex flex-col items-end gap-1'">
     <!-- 图片预览条 -->
     <div v-if="previewUrl" class="image-preview-bar">
       <img :src="previewUrl" alt="预览" class="preview-thumb" />

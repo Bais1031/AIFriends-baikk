@@ -3,7 +3,7 @@ import Message from "@/components/character/chat_field/chat_history/message/Mess
 import {nextTick, onBeforeUnmount, onMounted, useTemplateRef} from "vue";
 import api from "@/js/http/api.js";
 
-const props = defineProps(['history', 'friendId', 'character'])
+const props = defineProps(['history', 'friendId', 'character', 'inline'])
 const emit = defineEmits(['pushFrontMessage'])
 const scrollRef = useTemplateRef('scroll-ref')
 const sentinelRef = useTemplateRef('sentinel-ref')
@@ -105,7 +105,9 @@ defineExpose({
 </script>
 
 <template>
-  <div ref="scroll-ref" class="absolute top-18 left-0 w-90 h-112 overflow-y-scroll no-scrollbar">
+  <div ref="scroll-ref" :class="inline
+    ? 'flex-1 w-full overflow-y-scroll no-scrollbar pt-18 pb-20 px-2'
+    : 'absolute top-18 left-0 w-90 h-112 overflow-y-scroll no-scrollbar'">
     <div ref="sentinel-ref" class="h-2"></div>
     <Message
         v-for="message in history"
