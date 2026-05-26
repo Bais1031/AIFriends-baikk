@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="bg3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4facfe;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00f2fe;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="face3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e8f4f8;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#d1ecf1;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <circle cx="100" cy="100" r="100" fill="url(#bg3)"/>
+  <!-- 圆润方形头部 -->
+  <rect x="50" y="45" width="100" height="90" rx="30" fill="url(#face3)" stroke="#bee5eb" stroke-width="2"/>
+  <!-- 头顶装饰 -->
+  <circle cx="100" cy="45" r="8" fill="#20c997"/>
+  <!-- 眼睛 - 半闭合智慧眼 -->
+  <ellipse cx="78" cy="85" rx="11" ry="8" fill="#2b8a3e"/>
+  <ellipse cx="122" cy="85" rx="11" ry="8" fill="#2b8a3e"/>
+  <circle cx="80" cy="83" r="4" fill="white"/>
+  <circle cx="124" cy="83" r="4" fill="white"/>
+  <!-- 眼镜 -->
+  <circle cx="78" cy="85" r="16" fill="none" stroke="#495057" stroke-width="2"/>
+  <circle cx="122" cy="85" r="16" fill="none" stroke="#495057" stroke-width="2"/>
+  <line x1="94" y1="85" x2="106" y2="85" stroke="#495057" stroke-width="2"/>
+  <!-- 嘴巴 - 微笑 -->
+  <path d="M 85 108 Q 100 118 115 108" fill="none" stroke="#495057" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- 身体 -->
+  <rect x="65" y="135" width="70" height="40" rx="12" fill="white" opacity="0.9"/>
+  <!-- 日程表 -->
+  <line x1="80" y1="148" x2="120" y2="148" stroke="#20c997" stroke-width="2"/>
+  <line x1="80" y1="156" x2="110" y2="156" stroke="#adb5bd" stroke-width="1.5"/>
+  <line x1="80" y1="163" x2="100" y2="163" stroke="#adb5bd" stroke-width="1.5"/>
+  <!-- 勾选 -->
+  <circle cx="125" cy="148" r="5" fill="#20c997"/>
+  <path d="M 122 148 L 124 150 L 128 146" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- 书本装饰 -->
+  <rect x="145" y="130" width="25" height="30" rx="3" fill="#4facfe" opacity="0.8" transform="rotate(10, 157, 145)"/>
+  <rect x="147" y="132" width="21" height="26" rx="2" fill="white" opacity="0.9" transform="rotate(10, 157, 145)"/>
+</svg>

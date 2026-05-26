@@ -28,6 +28,7 @@ from web.views.schedule.update import UpdateScheduleView
 from web.views.schedule.delete import DeleteScheduleView
 from web.views.schedule.get_list import GetListScheduleView
 from web.views.schedule.get_single import GetSingleScheduleView
+from web.views.schedule.agent.chat import ScheduleAgentChatView
 
 urlpatterns = [
     path('api/user/account/login/', LoginView.as_view()),
@@ -60,6 +61,7 @@ urlpatterns = [
     path('api/schedule/delete/', DeleteScheduleView.as_view()),
     path('api/schedule/get_list/', GetListScheduleView.as_view()),
     path('api/schedule/get_single/', GetSingleScheduleView.as_view()),
+    path('api/schedule/agent_chat/', ScheduleAgentChatView.as_view()),
 
     path('', index),
 

@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="bg4" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#fa709a;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#fee140;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="face4" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffeaa7;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#fdcb6e;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <circle cx="100" cy="100" r="100" fill="url(#bg4)"/>
+  <!-- 猫耳头部 -->
+  <circle cx="100" cy="95" r="50" fill="url(#face4)" stroke="#f9ca24" stroke-width="2"/>
+  <!-- 猫耳朵 -->
+  <polygon points="60,60 50,25 80,50" fill="#fdcb6e" stroke="#f9ca24" stroke-width="2"/>
+  <polygon points="140,60 150,25 120,50" fill="#fdcb6e" stroke="#f9ca24" stroke-width="2"/>
+  <polygon points="63,58 55,32 77,52" fill="#fab1a0" opacity="0.6"/>
+  <polygon points="137,58 145,32 123,52" fill="#fab1a0" opacity="0.6"/>
+  <!-- 眼睛 -->
+  <ellipse cx="82" cy="90" rx="10" ry="12" fill="#2d3436"/>
+  <ellipse cx="118" cy="90" rx="10" ry="12" fill="#2d3436"/>
+  <circle cx="85" cy="87" r="4" fill="white"/>
+  <circle cx="121" cy="87" r="4" fill="white"/>
+  <circle cx="79" cy="93" r="2" fill="white" opacity="0.5"/>
+  <circle cx="115" cy="93" r="2" fill="white" opacity="0.5"/>
+  <!-- 鼻子 -->
+  <ellipse cx="100" cy="100" rx="4" ry="3" fill="#e17055"/>
+  <!-- 嘴巴 -->
+  <path d="M 92 105 Q 100 112 108 105" fill="none" stroke="#2d3436" stroke-width="2" stroke-linecap="round"/>
+  <!-- 胡须 -->
+  <line x1="60" y1="95" x2="40" y2="90" stroke="#b2bec3" stroke-width="1.5"/>
+  <line x1="60" y1="100" x2="38" y2="102" stroke="#b2bec3" stroke-width="1.5"/>
+  <line x1="140" y1="95" x2="160" y2="90" stroke="#b2bec3" stroke-width="1.5"/>
+  <line x1="140" y1="100" x2="162" y2="102" stroke="#b2bec3" stroke-width="1.5"/>
+  <!-- 身体 -->
+  <rect x="70" y="145" width="60" height="35" rx="12" fill="white" opacity="0.9"/>
+  <!-- 日程本 -->
+  <rect x="82" y="150" width="36" height="25" rx="4" fill="#fa709a"/>
+  <line x1="90" y1="158" x2="110" y2="158" stroke="white" stroke-width="1.5"/>
+  <line x1="90" y1="164" x2="105" y2="164" stroke="white" stroke-width="1.5"/>
+  <line x1="90" y1="170" x2="100" y2="170" stroke="white" stroke-width="1.5"/>
+  <!-- 星星 -->
+  <circle cx="45" cy="140" r="3" fill="white" opacity="0.6"/>
+  <circle cx="160" cy="50" r="2" fill="white" opacity="0.5"/>
+  <circle cx="170" cy="130" r="4" fill="white" opacity="0.4"/>
+</svg>

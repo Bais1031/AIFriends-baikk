@@ -2,6 +2,7 @@
 import {ref, computed, onMounted, useTemplateRef} from "vue";
 import api from "@/js/http/api.js";
 import ScheduleForm from "@/views/schedule/ScheduleForm.vue";
+import ScheduleAgent from "@/views/schedule/ScheduleAgent.vue";
 
 const today = new Date()
 const currentYear = ref(today.getFullYear())
@@ -10,6 +11,7 @@ const selectedDay = ref(today.getDate())
 const schedules = ref([])
 const loading = ref(false)
 const formRef = useTemplateRef('form-ref')
+const agentRef = useTemplateRef('agent-ref')
 const editingSchedule = ref(null)
 
 const weekDays = ['日', '一', '二', '三', '四', '五', '六']
@@ -249,6 +251,14 @@ onMounted(() => {
     </div>
 
     <ScheduleForm ref="form-ref" :schedule="editingSchedule" @save="handleSave" />
+    <ScheduleAgent ref="agent-ref" @scheduleCreated="loadSchedules" />
+  </div>
+
+  <!-- 日程助手浮动按钮 -->
+  <div class="fixed bottom-6 right-6 z-50">
+    <button @click="agentRef?.open()" class="btn btn-circle btn-lg btn-primary shadow-lg hover:shadow-xl transition-shadow" title="日程助手">
+      <img src="/avatars/schedule-bot-1.svg" alt="日程助手" class="w-10 h-10 rounded-full" />
+    </button>
   </div>
 </template>
 
