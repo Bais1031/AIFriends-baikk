@@ -9,6 +9,7 @@ import SpaceIndex from "@/views/user/space/SpaceIndex.vue";
 import ProfileIndex from "@/views/user/profile/ProfileIndex.vue";
 import {useUserStore} from "@/stores/user.js";
 import UpdateCharacter from "@/views/create/character/UpdateCharacter.vue";
+import ScheduleIndex from "@/views/schedule/ScheduleIndex.vue";
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -89,6 +90,14 @@ const router = createRouter({
       path:'/user/profile/',
       component:ProfileIndex,
       name:'user-profile-index',
+      meta: {
+        needLogin: true,
+      },
+    },
+    {
+      path:'/schedule/',
+      component:ScheduleIndex,
+      name:'schedule-index',
       meta: {
         needLogin: true,
       },

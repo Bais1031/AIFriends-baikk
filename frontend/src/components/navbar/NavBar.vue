@@ -3,6 +3,7 @@ import MenuIcon from "@/components/navbar/icons/MenuIcon.vue";
 import HomepageIcon from "@/components/navbar/icons/HomepageIcon.vue";
 import FriendIcon from "@/components/navbar/icons/FriendIcon.vue";
 import CreateIcon from "@/components/navbar/icons/CreateIcon.vue";
+import ScheduleIcon from "@/components/navbar/icons/ScheduleIcon.vue";
 import SearchIcon from "@/components/navbar/icons/SearchIcon.vue";
 import {useUserStore} from "@/stores/user.js";
 import UserMenu from "@/components/navbar/UserMenu.vue";
@@ -82,6 +83,12 @@ function handleSearch() {
             <RouterLink :to="{name: 'create-index'}" active-class="menu-focus" class="is-drawer-close:tooltip is-drawer-close:tooltip-right py-3" data-tip="创作">
               <CreateIcon />
               <span class="is-drawer-close:hidden text-base ml-2 whitespace-nowrap">创作</span>
+            </RouterLink>
+          </li>
+          <li v-if="user.isLogin()">
+            <RouterLink :to="{name: 'schedule-index'}" active-class="menu-focus" class="is-drawer-close:tooltip is-drawer-close:tooltip-right py-3" data-tip="日程">
+              <ScheduleIcon />
+              <span class="is-drawer-close:hidden text-base ml-2 whitespace-nowrap">日程</span>
             </RouterLink>
           </li>
         </ul>

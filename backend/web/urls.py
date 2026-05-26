@@ -23,6 +23,11 @@ from web.views.user.account.logout import LogoutView
 from web.views.user.account.refresh_token import RefreshTokenView
 from web.views.user.account.register import RegisterView
 from web.views.user.profile.update import UpdateProfileView
+from web.views.schedule.create import CreateScheduleView
+from web.views.schedule.update import UpdateScheduleView
+from web.views.schedule.delete import DeleteScheduleView
+from web.views.schedule.get_list import GetListScheduleView
+from web.views.schedule.get_single import GetSingleScheduleView
 
 urlpatterns = [
     path('api/user/account/login/', LoginView.as_view()),
@@ -49,6 +54,12 @@ urlpatterns = [
     path('api/friend/message/clear_history/', ClearHistoryView.as_view()),
     path('api/friend/message/delete_messages/', DeleteMessagesView.as_view()),
     path('api/friend/message/asr/asr/', ASRView.as_view()),
+
+    path('api/schedule/create/', CreateScheduleView.as_view()),
+    path('api/schedule/update/', UpdateScheduleView.as_view()),
+    path('api/schedule/delete/', DeleteScheduleView.as_view()),
+    path('api/schedule/get_list/', GetListScheduleView.as_view()),
+    path('api/schedule/get_single/', GetSingleScheduleView.as_view()),
 
     path('', index),
 
