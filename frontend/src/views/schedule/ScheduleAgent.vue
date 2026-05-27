@@ -1,6 +1,7 @@
 <script setup>
 import {nextTick, ref, useTemplateRef} from "vue";
 import streamApi from "@/js/http/streamApi.js";
+import api from "@/js/http/api.js";
 
 const emit = defineEmits(['scheduleCreated'])
 const modalRef = useTemplateRef('modal-ref')
@@ -10,15 +11,38 @@ const message = ref('')
 const messages = ref([])
 const isLoading = ref(false)
 
-function open() {
-  messages.value = [{
-    role: 'ai',
-    content: '你好！我是你的日程助手。你可以告诉我你想安排的事情，比如：\n\n- "明天下午3点开会"\n- "帮我看看这周有什么安排"\n- "下周五晚上7点和朋友聚餐，在万达广场"'
-  }]
+const WELCOME_MSG = {
+  role: 'ai',
+  content: '你好！我是你的日程助手。你可以告诉我你想安排的事情，比如：\n\n- "明天下午3点开会"\n- "帮我看看这周有什么安排"\n- "下周五晚上7点和朋友聚餐，在万达广场"'
+}
+
+async function open() {
   modalRef.value?.showModal()
+  messages.value = [WELCOME_MSG]
+
+  try {
+    const res = await api.get('/api/schedule/agent_history/')
+    if (res.data.result === 'success' && res.data.messages.length > 0) {
+      messages.value = res.data.messages
+    }
+  } catch (err) {
+    console.error('加载对话历史失败:', err)
+  }
+
   nextTick(() => {
     inputRef.value?.focus()
+    scrollToBottom()
   })
+}
+
+async function clearHistory() {
+  if (!confirm('确定清除所有对话记录吗？')) return
+  try {
+    await api.post('/api/schedule/agent_clear_history/')
+    messages.value = [WELCOME_MSG]
+  } catch (err) {
+    console.error('清除对话历史失败:', err)
+  }
 }
 
 async function handleSend() {
@@ -94,7 +118,10 @@ defineExpose({open})
           <h3 class="font-bold text-sm">日程助手</h3>
           <p class="text-xs text-base-content/50">用自然语言管理你的日程</p>
         </div>
-        <form method="dialog" class="ml-auto">
+        <button @click="clearHistory" class="btn btn-sm btn-ghost text-xs text-base-content/50 ml-auto" title="清除对话记录">
+          清除对话
+        </button>
+        <form method="dialog">
           <button class="btn btn-sm btn-circle btn-ghost">✕</button>
         </form>
       </div>

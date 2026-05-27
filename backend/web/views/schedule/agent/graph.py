@@ -4,7 +4,7 @@ import time
 from datetime import datetime, timedelta
 from typing import TypedDict, Annotated, Sequence
 
-from django.utils.timezone import now, make_aware
+from django.utils.timezone import now, make_aware, localtime
 from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
@@ -23,11 +23,19 @@ SYSTEM_PROMPT = """你是日程助手，帮助用户管理日程。你可以：
 3. 删除日程 — 根据用户要求删除
 
 规则：
-- 用户说"明天"就用明天的日期，说"后天"就用后天
+- 今天是 {today}，用户说"明天"就用明天的日期，说"后天"就用后天
 - 如果用户没指定结束时间，end_time 设为 null
 - 如果用户没指定地点，location 设为空字符串
 - 每次创建日程后，告诉用户创建成功并简要说明内容
 - 回复要简洁友好，像一个贴心的助理"""
+
+
+_WEEKDAYS = ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日']
+
+def get_system_prompt():
+    current = now()
+    weekday = _WEEKDAYS[current.weekday()]
+    return SYSTEM_PROMPT.format(today=current.strftime(f"%Y年%m月%d日 {weekday}"))
 
 
 class ScheduleGraph:
@@ -112,7 +120,7 @@ class ScheduleGraph:
 
             lines = []
             for s in schedules:
-                time_str = s.start_time.strftime("%m-%d %H:%M")
+                time_str = localtime(s.start_time).strftime("%m-%d %H:%M")
                 loc = f" @ {s.location}" if s.location else ""
                 lines.append(f"- {time_str} {s.title}{loc}")
             return "\n".join(lines)
@@ -159,7 +167,7 @@ class ScheduleGraph:
 
             lines = [f"当天已有 {same_day.count()} 个日程："]
             for s in same_day:
-                t = s.start_time.strftime("%H:%M")
+                t = localtime(s.start_time).strftime("%H:%M")
                 lines.append(f"- {t} {s.title}")
             return "\n".join(lines)
 

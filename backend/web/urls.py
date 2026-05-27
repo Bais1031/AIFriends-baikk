@@ -29,6 +29,8 @@ from web.views.schedule.delete import DeleteScheduleView
 from web.views.schedule.get_list import GetListScheduleView
 from web.views.schedule.get_single import GetSingleScheduleView
 from web.views.schedule.agent.chat import ScheduleAgentChatView
+from web.views.schedule.agent.history import AgentHistoryView
+from web.views.schedule.agent.clear_history import AgentClearHistoryView
 
 urlpatterns = [
     path('api/user/account/login/', LoginView.as_view()),
@@ -62,6 +64,8 @@ urlpatterns = [
     path('api/schedule/get_list/', GetListScheduleView.as_view()),
     path('api/schedule/get_single/', GetSingleScheduleView.as_view()),
     path('api/schedule/agent_chat/', ScheduleAgentChatView.as_view()),
+    path('api/schedule/agent_history/', AgentHistoryView.as_view()),
+    path('api/schedule/agent_clear_history/', AgentClearHistoryView.as_view()),
 
     path('', index),
 
